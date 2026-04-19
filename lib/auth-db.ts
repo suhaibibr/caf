@@ -653,32 +653,39 @@ export async function logSecurityEvent(input: {
   userAgent?: string | null;
   details?: Record<string, unknown> | null;
 }) {
-  await ensureAuthReady();
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      INSERT INTO security_events (
-        user_id,
-        event_type,
-        severity,
-        path,
-        method,
-        ip_address,
-        user_agent,
-        details_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      input.userId ?? null,
-      input.eventType.slice(0, 64),
-      input.severity,
-      input.path?.slice(0, 255) ?? null,
-      input.method?.slice(0, 16) ?? null,
-      input.ipAddress?.slice(0, 64) ?? null,
-      input.userAgent?.slice(0, 512) ?? null,
-      input.details ? JSON.stringify(input.details) : null,
-    ],
-  );
+  try {
+    await ensureAuthReady();
+    const pool = getDbPool();
+    await pool.execute<ResultSetHeader>(
+      `
+        INSERT INTO security_events (
+          user_id,
+          event_type,
+          severity,
+          path,
+          method,
+          ip_address,
+          user_agent,
+          details_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        input.userId ?? null,
+        input.eventType.slice(0, 64),
+        input.severity,
+        input.path?.slice(0, 255) ?? null,
+        input.method?.slice(0, 16) ?? null,
+        input.ipAddress?.slice(0, 64) ?? null,
+        input.userAgent?.slice(0, 512) ?? null,
+        input.details ? JSON.stringify(input.details) : null,
+      ],
+    );
+  } catch (error) {
+    console.error("Failed to write security event.", {
+      eventType: input.eventType,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function logAdminAudit(input: {
@@ -692,32 +699,40 @@ export async function logAdminAudit(input: {
   userAgent?: string | null;
   details?: Record<string, unknown> | null;
 }) {
-  await ensureAuthReady();
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      INSERT INTO admin_audit_logs (
-        admin_user_id,
-        action,
-        resource_type,
-        resource_id,
-        path,
-        method,
-        ip_address,
-        user_agent,
-        details_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      input.adminUserId,
-      input.action.slice(0, 64),
-      input.resourceType.slice(0, 64),
-      input.resourceId?.slice(0, 191) ?? null,
-      input.path?.slice(0, 255) ?? null,
-      input.method?.slice(0, 16) ?? null,
-      input.ipAddress?.slice(0, 64) ?? null,
-      input.userAgent?.slice(0, 512) ?? null,
-      input.details ? JSON.stringify(input.details) : null,
-    ],
-  );
+  try {
+    await ensureAuthReady();
+    const pool = getDbPool();
+    await pool.execute<ResultSetHeader>(
+      `
+        INSERT INTO admin_audit_logs (
+          admin_user_id,
+          action,
+          resource_type,
+          resource_id,
+          path,
+          method,
+          ip_address,
+          user_agent,
+          details_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        input.adminUserId,
+        input.action.slice(0, 64),
+        input.resourceType.slice(0, 64),
+        input.resourceId?.slice(0, 191) ?? null,
+        input.path?.slice(0, 255) ?? null,
+        input.method?.slice(0, 16) ?? null,
+        input.ipAddress?.slice(0, 64) ?? null,
+        input.userAgent?.slice(0, 512) ?? null,
+        input.details ? JSON.stringify(input.details) : null,
+      ],
+    );
+  } catch (error) {
+    console.error("Failed to write admin audit log.", {
+      action: input.action,
+      resourceType: input.resourceType,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
