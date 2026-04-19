@@ -163,12 +163,37 @@ async function main() {
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
   `);
 
-  await pool.execute(
-    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active",
+  const [superAdminColumnRows] = await pool.execute(
+    `
+      SELECT COLUMN_NAME
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'auth_users'
+        AND column_name = 'is_super_admin'
+      LIMIT 1
+    `,
   );
-  await pool.execute(
-    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER is_super_admin",
+  if (!superAdminColumnRows[0]) {
+    await pool.execute(
+      "ALTER TABLE auth_users ADD COLUMN is_super_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active",
+    );
+  }
+
+  const [mustChangePasswordRows] = await pool.execute(
+    `
+      SELECT COLUMN_NAME
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'auth_users'
+        AND column_name = 'must_change_password'
+      LIMIT 1
+    `,
   );
+  if (!mustChangePasswordRows[0]) {
+    await pool.execute(
+      "ALTER TABLE auth_users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER is_super_admin",
+    );
+  }
 
   const passwordHash = await hashPassword(password);
   await pool.execute(

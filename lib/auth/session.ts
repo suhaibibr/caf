@@ -85,7 +85,10 @@ function randomSessionId() {
 }
 
 function toIsoFromNow(seconds: number) {
-  return new Date(getNowMs() + seconds * 1000).toISOString();
+  return new Date(getNowMs() + seconds * 1000)
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
 }
 
 function normalizeEmail(value: string) {
@@ -362,7 +365,10 @@ export async function tryAuthenticateAdminLogin(input: {
     const nextAttempts = user.failedLoginAttempts + 1;
     const shouldLock = nextAttempts >= ACCOUNT_LOCK_MAX_FAILED_ATTEMPTS;
     const lockedUntilIso = shouldLock
-      ? new Date(getNowMs() + ACCOUNT_LOCK_MINUTES * 60 * 1000).toISOString()
+      ? new Date(getNowMs() + ACCOUNT_LOCK_MINUTES * 60 * 1000)
+          .toISOString()
+          .slice(0, 19)
+          .replace("T", " ")
       : null;
 
     await updateAuthUserFailedLogin({
@@ -420,18 +426,25 @@ export async function tryAuthenticateAdminLogin(input: {
     };
   }
 
-  await markAuthUserLoginSuccess(user.id);
   const maxAgeSeconds = input.rememberMe ? REMEMBER_ME_TTL_SECONDS : SESSION_TTL_SECONDS;
   const sessionId = randomSessionId();
   const expiresAtIso = toIsoFromNow(maxAgeSeconds);
-  await createAuthSession({
-    sessionId,
-    userId: user.id,
-    rememberMe: input.rememberMe,
-    ipAddress: input.ipAddress,
-    userAgent: input.userAgent,
-    expiresAtIso,
-  });
+  try {
+    await createAuthSession({
+      sessionId,
+      userId: user.id,
+      rememberMe: input.rememberMe,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      expiresAtIso,
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 500,
+      message: "تعذر إنشاء جلسة الدخول. حاول مرة أخرى.",
+    };
+  }
 
   const nowSeconds = Math.floor(getNowMs() / 1000);
   const tokenPayload: AuthTokenPayload = {
@@ -451,6 +464,8 @@ export async function tryAuthenticateAdminLogin(input: {
       message: "تعذر إعداد جلسة الدخول. تحقق من إعدادات الخادم.",
     };
   }
+
+  await markAuthUserLoginSuccess(user.id);
 
   await recordLoginAttempt({
     email: normalizedEmail,
