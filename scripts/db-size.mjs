@@ -107,7 +107,7 @@ async function main() {
   const [tableRows] = await pool.execute(
     `
       SELECT
-        table_name,
+        table_name AS table_name,
         ROUND((data_length + index_length) / 1024 / 1024, 2) AS size_mb
       FROM information_schema.tables
       WHERE table_schema = ?
@@ -124,7 +124,9 @@ async function main() {
   console.log(`TOTAL_GB: ${totalGb.toFixed(4)}`);
   console.log("TABLES_MB:");
   for (const row of tableRows) {
-    console.log(`${row.table_name}: ${Number(row.size_mb ?? 0).toFixed(2)}`);
+    const tableName =
+      row.table_name ?? row.TABLE_NAME ?? row.tableName ?? row.TABLE_NAME;
+    console.log(`${tableName}: ${Number(row.size_mb ?? row.SIZE_MB ?? 0).toFixed(2)}`);
   }
 
   await pool.end();
