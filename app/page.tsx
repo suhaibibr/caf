@@ -7,7 +7,7 @@ import {
   type TopRecipeUsageCard,
 } from "@/components/TopUsedRecipesSection";
 import { XbloomTrackedLink } from "@/components/XbloomTrackedLink";
-import { recipes } from "@/lib/data";
+import { getRoasterForRecipe, recipes } from "@/lib/data";
 import { listManagedRecipes, listManagedRecipesRandom } from "@/lib/recipes-db";
 import { listRoasters } from "@/lib/roasters-db";
 import { listTopXbloomRecipes } from "@/lib/xbloom-clicks-db";
@@ -374,6 +374,22 @@ function getTopUsageShortLabel(recipe: {
   return recipe.brewType;
 }
 
+function getFirstMatchedNumber(ingredients: string[], pattern: RegExp) {
+  return ingredients
+    .map((ingredient) => ingredient.match(pattern))
+    .find(Boolean)?.[1];
+}
+
+function mapStaticMethodToBrewType(method: string): ExclusiveRecipeCardData["brewType"] {
+  if (method === "Cold Brew") {
+    return "cold";
+  }
+  if (method === "Filter") {
+    return "filter";
+  }
+  return "hot";
+}
+
 function ExclusiveRecipeCard({
   recipe,
   index,
@@ -561,7 +577,41 @@ export default async function Home() {
       firstPourTemperature: recipe.firstPourTemperature,
       xbloomUrl: recipe.xbloomUrl,
     }));
-  const popularRecipes = generalManagedRecipes.slice(0, 8);
+  const staticFallbackRecipes: ExclusiveRecipeCardData[] = recipes.map((recipe, index) => {
+    const brewLiquidGrams = getFirstMatchedNumber(
+      recipe.ingredients,
+      /(\d+(?:\.\d+)?)\s*جم.*(?:ماء|استخلاص|حليب|تونيك)/,
+    );
+    const coffeeGrams =
+      getFirstMatchedNumber(recipe.ingredients, /(\d+(?:\.\d+)?)\s*جم.*قهوة/) ??
+      getFirstMatchedNumber(recipe.ingredients, /(\d+(?:\.\d+)?)\s*جم/);
+    const waterMl = getFirstMatchedNumber(recipe.ingredients, /(\d+(?:\.\d+)?)\s*جم.*ماء/);
+    const iceGrams = getFirstMatchedNumber(recipe.ingredients, /(\d+(?:\.\d+)?)\s*جم.*ثلج/);
+    const grams = coffeeGrams ? Number(coffeeGrams) : 18;
+    const brewLiquid = brewLiquidGrams ? Number(brewLiquidGrams) : null;
+    const roaster = getRoasterForRecipe(recipe);
+
+    return {
+      image: recipe.image || EXCLUSIVE_RECIPE_FALLBACK_IMAGES[index % EXCLUSIVE_RECIPE_FALLBACK_IMAGES.length],
+      slug: recipe.slug,
+      name: recipe.name,
+      href: `/recipes/${recipe.slug}`,
+      sourceLabel: "تحضير المحمصة",
+      authorName: roaster?.name ?? "تحضير المحمصة",
+      isRoasterApproved: false,
+      grams,
+      iceGrams: iceGrams ? Number(iceGrams) : null,
+      ratio: brewLiquid && grams > 0 ? `1:${(brewLiquid / grams).toFixed(1)}` : "حسب الوصفة",
+      waterMl: waterMl ? Number(waterMl) : null,
+      brewType: mapStaticMethodToBrewType(recipe.method),
+      firstPourTemperature: null,
+      xbloomUrl: "https://xbloom.com",
+    };
+  });
+  const popularRecipes =
+    generalManagedRecipes.length > 0
+      ? generalManagedRecipes.slice(0, 8)
+      : staticFallbackRecipes.slice(0, 8);
   const hasRoasters = roasters.length > 0;
   const totalRoasters = roasters.length;
   const totalRecipes = new Set([
