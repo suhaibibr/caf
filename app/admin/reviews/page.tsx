@@ -7,7 +7,7 @@ import { listRecipeSubmissions } from "@/lib/recipe-submissions-db";
 
 export const metadata: Metadata = {
   title: "مراجعة الوصفات | لوحة الإدارة",
-  description: "مراجعة الوصفات المرسلة من الصفحة الرئيسية.",
+  description: "سجل الوصفات المضافة من الصفحة الرئيسية للمراجعة الإدارية.",
 };
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function AdminReviewsPage() {
               مراجعة الوصفات
             </p>
             <h1 className="mt-2 text-4xl font-bold tracking-[-0.02em] sm:text-5xl">
-              الوصفات الجديدة من الصفحة الرئيسية
+              سجل الوصفات المضافة من الصفحة الرئيسية
             </h1>
           </div>
         </section>
@@ -35,4 +35,3 @@ export default async function AdminReviewsPage() {
     </AdminShell>
   );
 }
-

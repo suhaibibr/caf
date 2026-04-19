@@ -36,8 +36,6 @@ type AdminRecipeReviewsStudioProps = {
 type ApiPayload = {
   message?: string;
   affected?: number;
-  approved?: number;
-  skipped?: Array<{ id: number; reason: string }>;
 };
 
 type EditDraft = {
@@ -111,7 +109,7 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
     setSelectedIds((current) => current.filter((id) => !removeSet.has(id)));
   };
 
-  const runBulkAction = async (action: "mark-reviewed" | "delete" | "approve", ids: number[]) => {
+  const runBulkAction = async (action: "mark-reviewed" | "delete", ids: number[]) => {
     if (ids.length === 0) {
       setStatusMessage("حدد وصفة واحدة على الأقل.");
       return;
@@ -137,19 +135,8 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
         throw new Error(payload.message || "تعذر تنفيذ العملية.");
       }
 
-      if (action === "approve") {
-        const skippedIds = new Set((payload.skipped ?? []).map((item) => item.id));
-        const approvedIds = ids.filter((id) => !skippedIds.has(id));
-        removeIdsLocally(approvedIds);
-        setStatusMessage(
-          payload.skipped && payload.skipped.length > 0
-            ? `تم اعتماد ${approvedIds.length} وصفة، وتخطي ${payload.skipped.length}.`
-            : `تم اعتماد ${approvedIds.length} وصفة.`,
-        );
-      } else {
-        removeIdsLocally(ids);
-        setStatusMessage(action === "delete" ? "تم حذف الوصفات المحددة." : "تمت مراجعة الوصفات المحددة.");
-      }
+      removeIdsLocally(ids);
+      setStatusMessage(action === "delete" ? "تم حذف الوصفات المحددة." : "تمت مراجعة الوصفات المحددة.");
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "حدث خطأ أثناء التنفيذ.");
     } finally {
@@ -238,16 +225,6 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
           <button
             type="button"
             onClick={() => {
-              void runBulkAction("approve", selectedIds);
-            }}
-            disabled={isLoading}
-            className="rounded-[12px] border border-black/10 px-3 py-2 text-xs font-bold transition hover:bg-black hover:text-white disabled:opacity-60 dark:border-white/10 dark:hover:bg-white dark:hover:text-[#0B0F1A]"
-          >
-            اعتماد المحدد
-          </button>
-          <button
-            type="button"
-            onClick={() => {
               void runBulkAction("mark-reviewed", selectedIds);
             }}
             disabled={isLoading}
@@ -304,15 +281,6 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
                 <button
                   type="button"
                   onClick={() => {
-                    void runBulkAction("approve", [submission.id]);
-                  }}
-                  className="rounded-[10px] border border-black/10 px-3 py-1.5 text-xs font-bold transition hover:bg-black hover:text-white dark:border-white/10 dark:hover:bg-white dark:hover:text-[#0B0F1A]"
-                >
-                  اعتماد
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
                     void runBulkAction("delete", [submission.id]);
                   }}
                   className="rounded-[10px] border border-[#D96C6C]/24 px-3 py-1.5 text-xs font-bold text-[#A94848] transition hover:bg-[#A94848] hover:text-white dark:border-[#F18A8A]/20 dark:text-[#F1A4A4]"
@@ -334,7 +302,7 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
       {editing ? (
         <div className="fixed inset-0 z-[175] flex items-center justify-center bg-black/72 p-4">
           <div className="w-full max-w-2xl rounded-[24px] border border-white/10 bg-[#0D1016] p-6 text-[#EAEAEA]">
-            <h3 className="text-2xl font-bold">تعديل وصفة قبل الاعتماد</h3>
+            <h3 className="text-2xl font-bold">تعديل وصفة من سجل المراجعة</h3>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-bold text-white/56">اسم الوصفة</span>
@@ -446,4 +414,3 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
     </section>
   );
 }
-

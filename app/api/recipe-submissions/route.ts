@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import { getClientIp, isTrustedOrigin } from "@/lib/auth/request";
 import { createRecipeSubmission, ensureRecipeSubmissionsReady } from "@/lib/recipe-submissions-db";
+import { listRoasters } from "@/lib/roasters-db";
+import { listManagedRecipes, saveManagedRecipe } from "@/lib/recipes-db";
 
 type SubmissionBody = {
   name?: string;
@@ -28,6 +30,48 @@ type SubmissionBody = {
 type CountRow = RowDataPacket & {
   count: number;
 };
+
+function createSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\p{L}\p{N}-]/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function parseRatioField(value: string) {
+  const normalized = value.trim();
+  const waterMatch = normalized.match(/(\d+(?:\.\d+)?)\s*ml/i);
+  const ratioMatch = normalized.match(/1\s*:\s*\d+(?:\.\d+)?/i);
+
+  return {
+    waterMl: waterMatch ? Math.round(Number(waterMatch[1])) : null,
+    ratio: ratioMatch ? ratioMatch[0].replace(/\s+/g, "") : normalized,
+  };
+}
+
+function normalizeXbloomUrl(value: string) {
+  const raw = value.trim();
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(raw);
+    const id = parsed.searchParams.get("id");
+    if (id) {
+      return `id:${decodeURIComponent(id).trim()}`;
+    }
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.replace(/\/+$/, "");
+    const query = parsed.searchParams.toString();
+    return `${host}${path}${query ? `?${query}` : ""}`.toLowerCase();
+  } catch {
+    return raw.toLowerCase();
+  }
+}
 
 function sanitizeText(value: unknown, maxLength: number) {
   if (typeof value !== "string") {
@@ -164,36 +208,100 @@ export async function POST(request: Request) {
     );
   }
 
-  const submissionId = await createRecipeSubmission({
-    name,
-    authorName,
-    grams,
-    iceGrams: brewType === "cold" ? Math.round(iceGrams ?? 0) : null,
-    pourCount:
-      Number.isFinite(pourCount) && (pourCount ?? 0) > 0
-        ? Math.round(pourCount ?? 0)
-        : null,
-    firstPourTemperature:
-      Number.isFinite(firstPourTemperature) && (firstPourTemperature ?? 0) > 0
-        ? Number(firstPourTemperature)
-        : null,
-    pourSteps,
-    brewer,
-    ratioInput,
-    roasterSlug,
-    roasterName,
-    brewType,
-    xbloomUrl,
-    submitterIp: ipAddress,
-  });
+  try {
+    const existingRecipes = await listManagedRecipes();
+    const existingSlugs = new Set(existingRecipes.map((recipe) => recipe.slug));
+    const existingXbloom = new Set(
+      existingRecipes.map((recipe) => normalizeXbloomUrl(recipe.xbloomUrl)),
+    );
 
-  return NextResponse.json(
-    {
-      ok: true,
-      message: "تم إرسال الوصفة للمراجعة.",
-      submissionId,
-    },
-    { status: 201 },
-  );
+    const normalizedXbloom = normalizeXbloomUrl(xbloomUrl);
+    if (existingXbloom.has(normalizedXbloom)) {
+      return NextResponse.json(
+        { message: "هذا الرابط مضاف مسبقًا في وصفة منشورة." },
+        { status: 409 },
+      );
+    }
+
+    const baseSlug = createSlug(name) || `recipe-${Date.now()}`;
+    let slug = baseSlug;
+    let counter = 1;
+    while (existingSlugs.has(slug)) {
+      counter += 1;
+      slug = `${baseSlug}-${counter}`;
+    }
+
+    const roasters = await listRoasters();
+    const matchedRoaster = roasterSlug
+      ? roasters.find((roaster) => roaster.slug === roasterSlug) ?? null
+      : null;
+    const { waterMl, ratio } = parseRatioField(ratioInput);
+
+    await saveManagedRecipe({
+      slug,
+      name,
+      authorName,
+      // Public submissions are published مباشرة but remain غير معتمدة حتى يراجعها الإداري.
+      isRoasterApproved: false,
+      brewer,
+      grams,
+      iceGrams: brewType === "cold" ? Math.round(iceGrams ?? 0) : null,
+      pourCount:
+        Number.isFinite(pourCount) && (pourCount ?? 0) > 0
+          ? Math.round(pourCount ?? 0)
+          : null,
+      firstPourTemperature:
+        Number.isFinite(firstPourTemperature) && (firstPourTemperature ?? 0) > 0
+          ? Number(firstPourTemperature)
+          : null,
+      pourSteps,
+      ratio,
+      waterMl,
+      roasterSlug: matchedRoaster?.slug ?? roasterSlug,
+      roasterName: matchedRoaster?.name ?? roasterName,
+      mergeGroupKey: null,
+      brewType,
+      xbloomUrl,
+    });
+
+    const submissionId = await createRecipeSubmission({
+      name,
+      authorName,
+      grams,
+      iceGrams: brewType === "cold" ? Math.round(iceGrams ?? 0) : null,
+      pourCount:
+        Number.isFinite(pourCount) && (pourCount ?? 0) > 0
+          ? Math.round(pourCount ?? 0)
+          : null,
+      firstPourTemperature:
+        Number.isFinite(firstPourTemperature) && (firstPourTemperature ?? 0) > 0
+          ? Number(firstPourTemperature)
+          : null,
+      pourSteps,
+      brewer,
+      ratioInput,
+      roasterSlug,
+      roasterName,
+      brewType,
+      xbloomUrl,
+      submitterIp: ipAddress,
+    });
+
+    return NextResponse.json(
+      {
+        ok: true,
+        message: "تم نشر الوصفة مباشرة وإضافتها لسجل المراجعة.",
+        submissionId,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error ? error.message : "تعذر نشر الوصفة الآن.",
+      },
+      { status: 500 },
+    );
+  }
 }
-
