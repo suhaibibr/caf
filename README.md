@@ -32,6 +32,10 @@ This project now includes a complete admin authentication and authorization syst
 npm install
 ```
 
+```
+test
+```
+
 2. Create environment file:
 ```bash
 cp .env.example .env.local
