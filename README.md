@@ -38,13 +38,16 @@ cp .env.example .env.local
 ```
 
 3. Set a strong `AUTH_TOKEN_SECRET` in `.env.local`.
+4. Configure database connection values in `.env.local`:
+   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+   - Managed MySQL (e.g. Aiven): set `DB_SSL_MODE=REQUIRED` (or `VERIFY_CA` with `DB_SSL_CA`)
 
-4. Create/update the first admin user:
+5. Create/update the first admin user:
 ```bash
 npm run auth:create-user -- --email admin@example.com --password "StrongPass123!"
 ```
 
-5. Start dev server:
+6. Start dev server:
 ```bash
 npm run dev
 ```

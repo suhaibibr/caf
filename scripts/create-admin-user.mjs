@@ -8,6 +8,49 @@ const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 
+function isSslEnabled() {
+  const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
+  return mode !== "" && mode !== "DISABLED" && mode !== "OFF" && mode !== "NONE";
+}
+
+function shouldRejectUnauthorizedByDefault() {
+  const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
+  return mode === "VERIFY_CA" || mode === "VERIFY_IDENTITY";
+}
+
+function parseBooleanEnv(value) {
+  if (!value) {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return undefined;
+}
+
+function getSslConfig() {
+  if (!isSslEnabled()) {
+    return undefined;
+  }
+
+  const explicitRejectUnauthorized = parseBooleanEnv(
+    process.env.DB_SSL_REJECT_UNAUTHORIZED,
+  );
+  const rejectUnauthorized =
+    explicitRejectUnauthorized ?? shouldRejectUnauthorizedByDefault();
+  const ca = process.env.DB_SSL_CA?.replace(/\\n/g, "\n");
+
+  return {
+    rejectUnauthorized,
+    ...(ca ? { ca } : {}),
+    minVersion: "TLSv1.2",
+  };
+}
+
 function getArg(name) {
   const index = process.argv.findIndex((arg) => arg === `--${name}`);
   if (index === -1) {
@@ -56,6 +99,7 @@ async function main() {
     process.exit(1);
   }
 
+  const ssl = getSslConfig();
   const pool = mysql.createPool({
     host: process.env.DB_HOST ?? "127.0.0.1",
     port: Number(process.env.DB_PORT ?? 3306),
@@ -66,6 +110,7 @@ async function main() {
     connectionLimit: 2,
     queueLimit: 0,
     charset: "utf8mb4",
+    ...(ssl ? { ssl } : {}),
   });
 
   await pool.execute(`
