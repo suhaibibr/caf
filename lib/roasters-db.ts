@@ -154,6 +154,25 @@ function withStaticRecipeCount(roaster: Roaster) {
   };
 }
 
+async function ensureIndexExists(indexName: string, sql: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `
+      SELECT INDEX_NAME
+      FROM information_schema.statistics
+      WHERE table_schema = DATABASE()
+        AND table_name = 'roasters'
+        AND index_name = ?
+      LIMIT 1
+    `,
+    [indexName],
+  );
+
+  if (!rows[0]) {
+    await pool.execute(sql);
+  }
+}
+
 async function ensureRoastersTable() {
   const pool = getDbPool();
 
@@ -173,6 +192,10 @@ async function ensureRoastersTable() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
   `);
+  await ensureIndexExists(
+    "idx_roasters_updated_created",
+    "ALTER TABLE roasters ADD INDEX idx_roasters_updated_created (updated_at, created_at)",
+  );
 
   const [countRows] = await pool.query<RowDataPacket[]>(
     "SELECT COUNT(*) AS count FROM roasters",

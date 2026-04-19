@@ -8,11 +8,15 @@ import {
 } from "@/components/TopUsedRecipesSection";
 import { XbloomTrackedLink } from "@/components/XbloomTrackedLink";
 import { getRoasterForRecipe, recipes } from "@/lib/data";
-import { listManagedRecipes, listManagedRecipesRandom } from "@/lib/recipes-db";
+import {
+  countManagedRecipes,
+  listManagedRecipesBySlugs,
+  listManagedRecipesRandom,
+} from "@/lib/recipes-db";
 import { listRoasters } from "@/lib/roasters-db";
 import { listTopXbloomRecipes } from "@/lib/xbloom-clicks-db";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const EXCLUSIVE_RECIPE_FALLBACK_IMAGES = [
   "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=1400&q=85",
@@ -513,12 +517,18 @@ function ExclusiveRecipeCard({
 }
 
 export default async function Home() {
-  const [roasters, managedRecipes, randomManagedRecipes, topXbloomRecipes] = await Promise.all([
+  const [roasters, randomManagedRecipes, topXbloomRecipes, managedRecipesCount] =
+    await Promise.all([
     listRoasters(),
-    listManagedRecipes(),
     listManagedRecipesRandom(8),
     listTopXbloomRecipes(5),
+    countManagedRecipes(),
   ]);
+  const topUsageSlugs = [...new Set(topXbloomRecipes.map((entry) => entry.recipeSlug))];
+  const topUsageRecipes =
+    topUsageSlugs.length > 0
+      ? await listManagedRecipesBySlugs(topUsageSlugs)
+      : [];
   const isVarietyRoasterName = (value?: string | null) => {
     const normalized = (value || "").trim().toLowerCase();
     return normalized === "وصفات متنوعة" || normalized === "محمصة وصفات متنوعة";
@@ -526,7 +536,7 @@ export default async function Home() {
   const roasterMapBySlug = new Map(roasters.map((roaster) => [roaster.slug, roaster]));
   const varietyRoaster = roasters.find((roaster) => isVarietyRoasterName(roaster.name));
   const generalRecipesHref = varietyRoaster ? `/roasters/${varietyRoaster.slug}` : "/#recipes";
-  const topUsageCatalog: Omit<TopRecipeUsageCard, "clicks">[] = managedRecipes.map(
+  const topUsageCatalog: Omit<TopRecipeUsageCard, "clicks">[] = topUsageRecipes.map(
     (recipe, index) => ({
       slug: recipe.slug,
       name: recipe.name,
@@ -614,10 +624,7 @@ export default async function Home() {
       : staticFallbackRecipes.slice(0, 8);
   const hasRoasters = roasters.length > 0;
   const totalRoasters = roasters.length;
-  const totalRecipes = new Set([
-    ...recipes.map((recipe) => recipe.slug),
-    ...managedRecipes.map((recipe) => recipe.slug),
-  ]).size;
+  const totalRecipes = recipes.length + managedRecipesCount;
 
   return (
     <main className="theme-page page-shell relative min-h-screen overflow-hidden">

@@ -57,6 +57,10 @@ type RecipeSlugRow = RowDataPacket & {
   created_at: Date | string;
 };
 
+type CountRow = RowDataPacket & {
+  count: number;
+};
+
 export type ManagedRecipeInput = {
   slug: string;
   name: string;
@@ -179,6 +183,25 @@ async function ensureColumnExists(columnName: string, sql: string) {
   }
 }
 
+async function ensureIndexExists(indexName: string, sql: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `
+      SELECT INDEX_NAME
+      FROM information_schema.statistics
+      WHERE table_schema = DATABASE()
+        AND table_name = 'recipes'
+        AND index_name = ?
+      LIMIT 1
+    `,
+    [indexName],
+  );
+
+  if (!rows[0]) {
+    await pool.execute(sql);
+  }
+}
+
 async function ensureRecipesTable() {
   const pool = getDbPool();
 
@@ -230,6 +253,14 @@ async function ensureRecipesTable() {
   await ensureColumnExists(
     "merge_group_key",
     "ALTER TABLE recipes ADD COLUMN merge_group_key VARCHAR(191) NULL AFTER roaster_name",
+  );
+  await ensureIndexExists(
+    "idx_recipes_updated_created",
+    "ALTER TABLE recipes ADD INDEX idx_recipes_updated_created (updated_at, created_at)",
+  );
+  await ensureIndexExists(
+    "idx_recipes_created_at",
+    "ALTER TABLE recipes ADD INDEX idx_recipes_created_at (created_at)",
   );
 
   const [slugRows] = await pool.query<RecipeSlugRow[]>(
@@ -294,15 +325,82 @@ export async function listManagedRecipes() {
   }
 }
 
+export async function listManagedRecipesBySlugs(slugs: string[]) {
+  try {
+    await ensureRecipesReady();
+    const normalized = [...new Set(slugs.map((slug) => slug.trim()).filter(Boolean))];
+    if (normalized.length === 0) {
+      return [];
+    }
+
+    const pool = getDbPool();
+    const placeholders = normalized.map(() => "?").join(", ");
+    const [rows] = await pool.query<ManagedRecipeRow[]>(
+      `
+        SELECT *
+        FROM recipes
+        WHERE slug IN (${placeholders})
+      `,
+      normalized,
+    );
+    const recipeBySlug = new Map(rows.map((row) => [row.slug, mapRecipeRow(row)]));
+
+    return normalized
+      .map((slug) => recipeBySlug.get(slug))
+      .filter((recipe): recipe is ManagedRecipe => recipe !== undefined);
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in listManagedRecipesBySlugs, returning empty list.");
+    return [];
+  }
+}
+
+export async function countManagedRecipes() {
+  try {
+    await ensureRecipesReady();
+    const pool = getDbPool();
+    const [rows] = await pool.query<CountRow[]>("SELECT COUNT(*) AS count FROM recipes");
+    return Number(rows[0]?.count ?? 0);
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in countManagedRecipes, returning 0.");
+    return 0;
+  }
+}
+
 export async function listManagedRecipesRandom(limit = 8) {
   try {
     await ensureRecipesReady();
     const pool = getDbPool();
     const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    const sampleSize = Math.max(safeLimit * 4, 24);
     const [rows] = await pool.query<ManagedRecipeRow[]>(
-      `SELECT * FROM recipes ORDER BY RAND() LIMIT ${safeLimit}`,
+      `
+        SELECT *
+        FROM recipes
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT ?
+      `,
+      [sampleSize],
     );
-    return rows.map(mapRecipeRow);
+
+    if (rows.length <= safeLimit) {
+      return rows.map(mapRecipeRow);
+    }
+
+    const shuffled = [...rows];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      const current = shuffled[index];
+      shuffled[index] = shuffled[randomIndex];
+      shuffled[randomIndex] = current;
+    }
+
+    return shuffled.slice(0, safeLimit).map(mapRecipeRow);
   } catch (error) {
     if (!isRecoverableDbError(error)) {
       throw error;

@@ -31,6 +31,25 @@ function isRecoverableDbError(error: unknown) {
   return typeof code === "string" && RECOVERABLE_DB_ERROR_CODES.has(code);
 }
 
+async function ensureIndexExists(indexName: string, sql: string) {
+  const pool = getDbPool();
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `
+      SELECT INDEX_NAME
+      FROM information_schema.statistics
+      WHERE table_schema = DATABASE()
+        AND table_name = 'xbloom_recipe_clicks'
+        AND index_name = ?
+      LIMIT 1
+    `,
+    [indexName],
+  );
+
+  if (!rows[0]) {
+    await pool.execute(sql);
+  }
+}
+
 async function ensureXbloomClicksTable() {
   const pool = getDbPool();
 
@@ -42,6 +61,10 @@ async function ensureXbloomClicksTable() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
   `);
+  await ensureIndexExists(
+    "idx_xbloom_clicks_rank",
+    "ALTER TABLE xbloom_recipe_clicks ADD INDEX idx_xbloom_clicks_rank (click_count, updated_at)",
+  );
 }
 
 export async function ensureXbloomClicksReady() {

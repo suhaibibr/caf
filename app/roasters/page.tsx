@@ -2,7 +2,7 @@ import { ManagedRoastersGrid } from "@/components/ManagedRoastersGrid";
 import { NavBar } from "@/components/NavBar";
 import { listRoasters } from "@/lib/roasters-db";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function RoastersPage() {
   const roasters = await listRoasters();
