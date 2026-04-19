@@ -445,26 +445,34 @@ export async function recordLoginAttempt(input: {
   wasSuccess: boolean;
   reason: string;
 }) {
-  await ensureAuthReady();
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      INSERT INTO auth_login_attempts (
-        email_normalized,
-        ip_address,
-        user_agent,
-        was_success,
-        reason
-      ) VALUES (?, ?, ?, ?, ?)
-    `,
-    [
-      input.email,
-      input.ipAddress,
-      input.userAgent,
-      input.wasSuccess ? 1 : 0,
-      input.reason.slice(0, 191),
-    ],
-  );
+  try {
+    await ensureAuthReady();
+    const pool = getDbPool();
+    await pool.execute<ResultSetHeader>(
+      `
+        INSERT INTO auth_login_attempts (
+          email_normalized,
+          ip_address,
+          user_agent,
+          was_success,
+          reason
+        ) VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        input.email,
+        input.ipAddress,
+        input.userAgent,
+        input.wasSuccess ? 1 : 0,
+        input.reason.slice(0, 191),
+      ],
+    );
+  } catch (error) {
+    console.error("Failed to write auth login attempt.", {
+      reason: input.reason,
+      wasSuccess: input.wasSuccess,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function getRecentFailedLoginCounts(input: {
