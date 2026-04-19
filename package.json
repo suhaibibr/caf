@@ -9,7 +9,8 @@
     "lint": "eslint",
     "auth:create-user": "node scripts/create-admin-user.mjs",
     "auth:unlock": "node scripts/reset-auth-locks.mjs",
-    "db:size": "node scripts/db-size.mjs"
+    "db:size": "node scripts/db-size.mjs",
+    "db:migrate:local-to-primary": "node scripts/migrate-local-to-primary.mjs"
   },
   "dependencies": {
     "mysql2": "^3.22.0",
