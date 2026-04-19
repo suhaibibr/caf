@@ -12,6 +12,24 @@ export type XbloomTopRecipe = {
 };
 
 let setupPromise: Promise<void> | null = null;
+const RECOVERABLE_DB_ERROR_CODES = new Set([
+  "ER_ACCESS_DENIED_ERROR",
+  "ER_DBACCESS_DENIED_ERROR",
+  "ER_BAD_DB_ERROR",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "PROTOCOL_CONNECTION_LOST",
+]);
+
+function isRecoverableDbError(error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return typeof code === "string" && RECOVERABLE_DB_ERROR_CODES.has(code);
+}
 
 async function ensureXbloomClicksTable() {
   const pool = getDbPool();
@@ -35,41 +53,56 @@ export async function ensureXbloomClicksReady() {
 }
 
 export async function trackXbloomRecipeClick(recipeSlug: string) {
-  await ensureXbloomClicksReady();
-  const normalized = recipeSlug.trim();
-  if (!normalized) {
-    return;
-  }
+  try {
+    await ensureXbloomClicksReady();
+    const normalized = recipeSlug.trim();
+    if (!normalized) {
+      return;
+    }
 
-  const pool = getDbPool();
-  await pool.execute<ResultSetHeader>(
-    `
-      INSERT INTO xbloom_recipe_clicks (recipe_slug, click_count)
-      VALUES (?, 1)
-      ON DUPLICATE KEY UPDATE
-        click_count = click_count + 1
-    `,
-    [normalized],
-  );
+    const pool = getDbPool();
+    await pool.execute<ResultSetHeader>(
+      `
+        INSERT INTO xbloom_recipe_clicks (recipe_slug, click_count)
+        VALUES (?, 1)
+        ON DUPLICATE KEY UPDATE
+          click_count = click_count + 1
+      `,
+      [normalized],
+    );
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in trackXbloomRecipeClick, skipping click tracking.");
+  }
 }
 
 export async function listTopXbloomRecipes(limit = 5) {
-  await ensureXbloomClicksReady();
-  const pool = getDbPool();
-  const safeLimit = Math.max(1, Math.min(20, Math.floor(limit)));
+  try {
+    await ensureXbloomClicksReady();
+    const pool = getDbPool();
+    const safeLimit = Math.max(1, Math.min(20, Math.floor(limit)));
 
-  const [rows] = await pool.query<XbloomClickRow[]>(
-    `
-      SELECT recipe_slug, click_count
-      FROM xbloom_recipe_clicks
-      ORDER BY click_count DESC, updated_at DESC
-      LIMIT ?
-    `,
-    [safeLimit],
-  );
+    const [rows] = await pool.query<XbloomClickRow[]>(
+      `
+        SELECT recipe_slug, click_count
+        FROM xbloom_recipe_clicks
+        ORDER BY click_count DESC, updated_at DESC
+        LIMIT ?
+      `,
+      [safeLimit],
+    );
 
-  return rows.map((row) => ({
-    recipeSlug: row.recipe_slug,
-    clicks: Number(row.click_count ?? 0),
-  }));
+    return rows.map((row) => ({
+      recipeSlug: row.recipe_slug,
+      clicks: Number(row.click_count ?? 0),
+    }));
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in listTopXbloomRecipes, returning empty list.");
+    return [];
+  }
 }

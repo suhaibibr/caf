@@ -78,6 +78,24 @@ export type ManagedRecipeInput = {
 };
 
 let setupPromise: Promise<void> | null = null;
+const RECOVERABLE_DB_ERROR_CODES = new Set([
+  "ER_ACCESS_DENIED_ERROR",
+  "ER_DBACCESS_DENIED_ERROR",
+  "ER_BAD_DB_ERROR",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "PROTOCOL_CONNECTION_LOST",
+]);
+
+function isRecoverableDbError(error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return typeof code === "string" && RECOVERABLE_DB_ERROR_CODES.has(code);
+}
 
 function normalizeSlug(value: string) {
   try {
@@ -260,56 +278,86 @@ export async function ensureRecipesReady() {
 }
 
 export async function listManagedRecipes() {
-  await ensureRecipesReady();
-  const pool = getDbPool();
-  const [rows] = await pool.query<ManagedRecipeRow[]>(
-    "SELECT * FROM recipes ORDER BY updated_at DESC, created_at DESC",
-  );
-  return rows.map(mapRecipeRow);
+  try {
+    await ensureRecipesReady();
+    const pool = getDbPool();
+    const [rows] = await pool.query<ManagedRecipeRow[]>(
+      "SELECT * FROM recipes ORDER BY updated_at DESC, created_at DESC",
+    );
+    return rows.map(mapRecipeRow);
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in listManagedRecipes, returning empty list.");
+    return [];
+  }
 }
 
 export async function listManagedRecipesRandom(limit = 8) {
-  await ensureRecipesReady();
-  const pool = getDbPool();
-  const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
-  const [rows] = await pool.query<ManagedRecipeRow[]>(
-    `SELECT * FROM recipes ORDER BY RAND() LIMIT ${safeLimit}`,
-  );
-  return rows.map(mapRecipeRow);
+  try {
+    await ensureRecipesReady();
+    const pool = getDbPool();
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    const [rows] = await pool.query<ManagedRecipeRow[]>(
+      `SELECT * FROM recipes ORDER BY RAND() LIMIT ${safeLimit}`,
+    );
+    return rows.map(mapRecipeRow);
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in listManagedRecipesRandom, returning empty list.");
+    return [];
+  }
 }
 
 export async function listManagedRecipesByRoaster(roasterSlug: string) {
-  await ensureRecipesReady();
-  const pool = getDbPool();
-  for (const candidate of slugCandidates(roasterSlug)) {
-    const [rows] = await pool.execute<ManagedRecipeRow[]>(
-      "SELECT * FROM recipes WHERE roaster_slug = ? ORDER BY updated_at DESC, created_at DESC",
-      [candidate],
-    );
+  try {
+    await ensureRecipesReady();
+    const pool = getDbPool();
+    for (const candidate of slugCandidates(roasterSlug)) {
+      const [rows] = await pool.execute<ManagedRecipeRow[]>(
+        "SELECT * FROM recipes WHERE roaster_slug = ? ORDER BY updated_at DESC, created_at DESC",
+        [candidate],
+      );
 
-    if (rows.length > 0) {
-      return rows.map(mapRecipeRow);
+      if (rows.length > 0) {
+        return rows.map(mapRecipeRow);
+      }
     }
+    return [];
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in listManagedRecipesByRoaster, returning empty list.");
+    return [];
   }
-
-  return [];
 }
 
 export async function getManagedRecipeBySlug(slug: string) {
-  await ensureRecipesReady();
-  const pool = getDbPool();
-  for (const candidate of slugCandidates(slug)) {
-    const [rows] = await pool.execute<ManagedRecipeRow[]>(
-      "SELECT * FROM recipes WHERE slug = ? LIMIT 1",
-      [candidate],
-    );
+  try {
+    await ensureRecipesReady();
+    const pool = getDbPool();
+    for (const candidate of slugCandidates(slug)) {
+      const [rows] = await pool.execute<ManagedRecipeRow[]>(
+        "SELECT * FROM recipes WHERE slug = ? LIMIT 1",
+        [candidate],
+      );
 
-    if (rows[0]) {
-      return mapRecipeRow(rows[0]);
+      if (rows[0]) {
+        return mapRecipeRow(rows[0]);
+      }
     }
+    return null;
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in getManagedRecipeBySlug, returning null.");
+    return null;
   }
-
-  return null;
 }
 
 export async function saveManagedRecipe(input: ManagedRecipeInput) {

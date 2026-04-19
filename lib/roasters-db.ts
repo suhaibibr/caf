@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDbPool } from "@/lib/db";
 import { ensureRecipesReady } from "@/lib/recipes-db";
 import {
+  getRoaster,
   getRecipesByRoaster,
   roasters as seedRoasters,
   type Roaster,
@@ -45,6 +46,24 @@ type RoasterInput = {
 };
 
 let setupPromise: Promise<void> | null = null;
+const RECOVERABLE_DB_ERROR_CODES = new Set([
+  "ER_ACCESS_DENIED_ERROR",
+  "ER_DBACCESS_DENIED_ERROR",
+  "ER_BAD_DB_ERROR",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "PROTOCOL_CONNECTION_LOST",
+]);
+
+function isRecoverableDbError(error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return typeof code === "string" && RECOVERABLE_DB_ERROR_CODES.has(code);
+}
 
 function normalizeSlug(value: string) {
   try {
@@ -124,6 +143,14 @@ function withRecipeCount(
     ...roaster,
     recipeCount: staticCount + managedCounts.total,
     approvedRecipeCount: managedCounts.approved,
+  };
+}
+
+function withStaticRecipeCount(roaster: Roaster) {
+  return {
+    ...roaster,
+    recipeCount: getRecipesByRoaster(roaster.slug).length,
+    approvedRecipeCount: 0,
   };
 }
 
@@ -220,31 +247,52 @@ export async function ensureRoastersReady() {
 }
 
 export async function listRoasters() {
-  await ensureRoastersReady();
-  const [pool, managedCountMap] = await Promise.all([
-    Promise.resolve(getDbPool()),
-    getManagedRecipeCountMap(),
-  ]);
-  const [rows] = await pool.query<RoasterRow[]>(
-    "SELECT * FROM roasters ORDER BY updated_at DESC, created_at DESC",
-  );
-  return rows.map((row) => withRecipeCount(mapRoasterRow(row), managedCountMap));
+  try {
+    await ensureRoastersReady();
+    const [pool, managedCountMap] = await Promise.all([
+      Promise.resolve(getDbPool()),
+      getManagedRecipeCountMap(),
+    ]);
+    const [rows] = await pool.query<RoasterRow[]>(
+      "SELECT * FROM roasters ORDER BY updated_at DESC, created_at DESC",
+    );
+    return rows.map((row) => withRecipeCount(mapRoasterRow(row), managedCountMap));
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in listRoasters, serving static fallback.");
+    return seedRoasters.map(withStaticRecipeCount);
+  }
 }
 
 export async function getRoasterBySlug(slug: string) {
-  await ensureRoastersReady();
-  const [pool, managedCountMap] = await Promise.all([
-    Promise.resolve(getDbPool()),
-    getManagedRecipeCountMap(),
-  ]);
-  for (const candidate of slugCandidates(slug)) {
-    const [rows] = await pool.execute<RoasterRow[]>(
-      "SELECT * FROM roasters WHERE slug = ? LIMIT 1",
-      [candidate],
-    );
+  try {
+    await ensureRoastersReady();
+    const [pool, managedCountMap] = await Promise.all([
+      Promise.resolve(getDbPool()),
+      getManagedRecipeCountMap(),
+    ]);
+    for (const candidate of slugCandidates(slug)) {
+      const [rows] = await pool.execute<RoasterRow[]>(
+        "SELECT * FROM roasters WHERE slug = ? LIMIT 1",
+        [candidate],
+      );
 
-    if (rows[0]) {
-      return withRecipeCount(mapRoasterRow(rows[0]), managedCountMap);
+      if (rows[0]) {
+        return withRecipeCount(mapRoasterRow(rows[0]), managedCountMap);
+      }
+    }
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in getRoasterBySlug, serving static fallback.");
+    for (const candidate of slugCandidates(slug)) {
+      const roaster = getRoaster(candidate);
+      if (roaster) {
+        return withStaticRecipeCount(roaster);
+      }
     }
   }
 
