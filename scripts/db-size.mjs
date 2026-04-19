@@ -1,4 +1,36 @@
+import fs from "node:fs";
+import path from "node:path";
 import mysql from "mysql2/promise";
+
+function loadEnvFiles() {
+  const envFiles = [".env", ".env.local"];
+  for (const fileName of envFiles) {
+    const filePath = path.join(process.cwd(), fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    const content = fs.readFileSync(filePath, "utf8");
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) {
+        continue;
+      }
+      const index = line.indexOf("=");
+      if (index <= 0) {
+        continue;
+      }
+      const key = line.slice(0, index).trim();
+      let value = line.slice(index + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  }
+}
 
 function isSslEnabled() {
   const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
@@ -44,6 +76,7 @@ function getSslConfig() {
 }
 
 async function main() {
+  loadEnvFiles();
   const database = process.env.DB_NAME ?? "caf";
   const ssl = getSslConfig();
   const pool = mysql.createPool({
