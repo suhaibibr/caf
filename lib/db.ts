@@ -29,6 +29,17 @@ function parseBooleanEnv(value: string | undefined) {
   return undefined;
 }
 
+function parsePositiveIntEnv(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value.trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return parsed;
+}
+
 function getSslConfig() {
   if (!isSslEnabled()) {
     return undefined;
@@ -49,6 +60,17 @@ function getSslConfig() {
 export function getDbPool() {
   if (!global.__cafMysqlPool) {
     const ssl = getSslConfig();
+    const isProduction = process.env.NODE_ENV === "production";
+    const connectionLimit =
+      parsePositiveIntEnv(process.env.DB_CONNECTION_LIMIT) ??
+      (isProduction ? 2 : 10);
+    const maxIdle =
+      parsePositiveIntEnv(process.env.DB_MAX_IDLE) ??
+      Math.min(connectionLimit, isProduction ? 1 : connectionLimit);
+    const idleTimeout =
+      parsePositiveIntEnv(process.env.DB_IDLE_TIMEOUT_MS) ?? 60_000;
+    const connectTimeout =
+      parsePositiveIntEnv(process.env.DB_CONNECT_TIMEOUT_MS) ?? 10_000;
 
     global.__cafMysqlPool = mysql.createPool({
       host: process.env.DB_HOST ?? "127.0.0.1",
@@ -57,7 +79,12 @@ export function getDbPool() {
       password: process.env.DB_PASSWORD ?? "",
       database: process.env.DB_NAME ?? "caf",
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit,
+      maxIdle,
+      idleTimeout,
+      connectTimeout,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
       queueLimit: 0,
       charset: "utf8mb4",
       ...(ssl ? { ssl } : {}),

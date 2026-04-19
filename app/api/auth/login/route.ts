@@ -4,6 +4,11 @@ import { getClientIp, getUserAgent, isSafeRedirectPath, isTrustedOrigin } from "
 import { tryAuthenticateAdminLogin } from "@/lib/auth/session";
 import { logSecurityEvent } from "@/lib/auth-db";
 import { SECURITY_EVENT_WARNING } from "@/lib/auth/constants";
+import {
+  getDbErrorCode,
+  isDbConnectionExhaustedError,
+  isRecoverableDbError,
+} from "@/lib/db-errors";
 
 type LoginBody = {
   email?: string;
@@ -74,7 +79,26 @@ export async function POST(request: Request) {
     });
     setAuthCookieOnResponse(response, loginResult.token, loginResult.maxAgeSeconds);
     return response;
-  } catch {
+  } catch (error) {
+    if (isDbConnectionExhaustedError(error)) {
+      return NextResponse.json(
+        { message: "الخادم مزدحم حالياً بسبب ضغط قاعدة البيانات. حاول بعد دقيقة." },
+        { status: 503 },
+      );
+    }
+
+    if (isRecoverableDbError(error)) {
+      return NextResponse.json(
+        { message: "تعذر الاتصال بقاعدة البيانات حالياً. حاول مرة أخرى." },
+        { status: 503 },
+      );
+    }
+
+    const code = getDbErrorCode(error);
+    console.error("Unexpected login failure.", {
+      code: code || "unknown",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { message: "تعذر إتمام تسجيل الدخول الآن." },
       { status: 500 },

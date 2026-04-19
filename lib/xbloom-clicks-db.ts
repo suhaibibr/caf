@@ -1,5 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDbPool } from "@/lib/db";
+import { isRecoverableDbError } from "@/lib/db-errors";
 
 type XbloomClickRow = RowDataPacket & {
   recipe_slug: string;
@@ -12,24 +13,6 @@ export type XbloomTopRecipe = {
 };
 
 let setupPromise: Promise<void> | null = null;
-const RECOVERABLE_DB_ERROR_CODES = new Set([
-  "ER_ACCESS_DENIED_ERROR",
-  "ER_DBACCESS_DENIED_ERROR",
-  "ER_BAD_DB_ERROR",
-  "ECONNREFUSED",
-  "ETIMEDOUT",
-  "ENOTFOUND",
-  "EHOSTUNREACH",
-  "PROTOCOL_CONNECTION_LOST",
-]);
-
-function isRecoverableDbError(error: unknown) {
-  const code =
-    typeof error === "object" && error !== null && "code" in error
-      ? (error as { code?: unknown }).code
-      : undefined;
-  return typeof code === "string" && RECOVERABLE_DB_ERROR_CODES.has(code);
-}
 
 async function ensureIndexExists(indexName: string, sql: string) {
   const pool = getDbPool();

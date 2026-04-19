@@ -41,6 +41,12 @@ cp .env.example .env.local
 4. Configure database connection values in `.env.local`:
    - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
    - Managed MySQL (e.g. Aiven): set `DB_SSL_MODE=REQUIRED` (or `VERIFY_CA` with `DB_SSL_CA`)
+   - On Vercel/serverless, reduce DB pressure:
+     - `DB_CONNECTION_LIMIT=2`
+     - `DB_MAX_IDLE=1`
+     - `DB_IDLE_TIMEOUT_MS=60000`
+   - In production, set `APP_ORIGIN` to your deployed domain (for CSRF checks), for example:
+     - `APP_ORIGIN=https://caf-sand.vercel.app`
 
 5. Create/update the first admin user:
 ```bash
