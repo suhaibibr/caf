@@ -367,11 +367,26 @@ export function GuestRecipeEntry({ roasters }: GuestRecipeEntryProps) {
       });
 
       const payload =
-        (await readJsonSafely<{ message?: string }>(response)) ?? {
+        (await readJsonSafely<{ message?: string; slug?: string; recipeUrl?: string }>(response)) ?? {
           message: "الرد من الخادم غير مكتمل.",
         };
       if (!response.ok) {
         throw new Error(payload.message || "تعذر إرسال الوصفة.");
+      }
+
+      const createdSlug =
+        typeof payload.slug === "string" && payload.slug.trim()
+          ? payload.slug.trim()
+          : null;
+      if (createdSlug) {
+        const params = new URLSearchParams({
+          slug: createdSlug,
+          from: "guest",
+        });
+        setIsOpen(false);
+        resetForm();
+        router.push(`/recipes/success?${params.toString()}`);
+        return;
       }
 
       router.refresh();

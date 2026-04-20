@@ -32,6 +32,8 @@ type CountRow = RowDataPacket & {
   count: number;
 };
 
+const MISC_RECIPES_LABEL = "وصفات متنوعة";
+
 function createSlug(value: string) {
   return value
     .trim()
@@ -246,6 +248,7 @@ export async function POST(request: Request) {
     const matchedRoaster = roasterSlug
       ? roasters.find((roaster) => roaster.slug === roasterSlug) ?? null
       : null;
+    const resolvedRoasterName = matchedRoaster?.name ?? roasterName ?? MISC_RECIPES_LABEL;
     const { waterMl, ratio } = parseRatioField(ratioInput);
 
     await saveManagedRecipe({
@@ -268,8 +271,8 @@ export async function POST(request: Request) {
       pourSteps,
       ratio,
       waterMl,
-      roasterSlug: matchedRoaster?.slug ?? roasterSlug,
-      roasterName: matchedRoaster?.name ?? roasterName,
+      roasterSlug: matchedRoaster?.slug ?? null,
+      roasterName: resolvedRoasterName,
       mergeGroupKey: null,
       brewType,
       xbloomUrl,
@@ -291,8 +294,8 @@ export async function POST(request: Request) {
       pourSteps,
       brewer,
       ratioInput,
-      roasterSlug,
-      roasterName,
+      roasterSlug: matchedRoaster?.slug ?? null,
+      roasterName: resolvedRoasterName,
       brewType,
       xbloomUrl,
       submitterIp: ipAddress,
@@ -303,6 +306,8 @@ export async function POST(request: Request) {
         ok: true,
         message: "تم نشر الوصفة مباشرة وإضافتها لسجل المراجعة.",
         submissionId,
+        slug,
+        recipeUrl: `/recipes/${slug}`,
       },
       { status: 201 },
     );

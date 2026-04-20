@@ -39,6 +39,8 @@ type BulkActionBody =
       };
     };
 
+const MISC_RECIPES_LABEL = "وصفات متنوعة";
+
 function createSlug(value: string) {
   return value
     .trim()
@@ -300,6 +302,8 @@ export async function PATCH(request: Request) {
       const matchedRoaster = submission.roasterSlug
         ? roasters.find((roaster) => roaster.slug === submission.roasterSlug) ?? null
         : null;
+      const fallbackRoasterName = submission.roasterName?.trim() || null;
+      const resolvedRoasterName = matchedRoaster?.name ?? fallbackRoasterName ?? MISC_RECIPES_LABEL;
 
       await saveManagedRecipe({
         slug,
@@ -314,8 +318,8 @@ export async function PATCH(request: Request) {
         pourSteps: submission.pourSteps,
         ratio,
         waterMl,
-        roasterSlug: matchedRoaster?.slug ?? submission.roasterSlug ?? null,
-        roasterName: matchedRoaster?.name ?? submission.roasterName ?? null,
+        roasterSlug: matchedRoaster?.slug ?? null,
+        roasterName: resolvedRoasterName,
         mergeGroupKey: null,
         brewType: submission.brewType,
         xbloomUrl: submission.xbloomUrl,
@@ -356,4 +360,3 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ message: "إجراء غير معروف." }, { status: 400 });
 }
-

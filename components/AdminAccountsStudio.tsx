@@ -160,7 +160,7 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
 
       <div className="rounded-[24px] border border-black/8 bg-white/76 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.05)] dark:border-white/10 dark:bg-white/[0.045]">
         <p className="text-xs font-bold text-black/42 dark:text-[#EAEAEA]/42">الحسابات</p>
-        <h2 className="mt-1 text-2xl font-bold">الحسابات الإدارية</h2>
+        <h2 className="mt-1 text-2xl font-bold">الإدارة</h2>
 
         <div className="mt-5 space-y-3">
           {sortedAdmins.map((admin) => (
@@ -202,4 +202,3 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
     </section>
   );
 }
-

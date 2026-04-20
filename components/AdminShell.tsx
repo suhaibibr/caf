@@ -24,7 +24,7 @@ const sidebarItems = [
     path: "M7 7h10M7 12h10M7 17h6M4 4h16v16H4z",
   },
   {
-    label: "الحسابات الإدارية",
+    label: "الإدارة",
     href: "/admin/accounts",
     path: "M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0ZM4 20a6 6 0 0 1 12 0M19 8v6M22 11h-6",
   },

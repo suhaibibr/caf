@@ -1190,7 +1190,7 @@ export function AdminRecipesStudio({
       });
 
       const payload =
-        (await readJsonSafely<ManagedRecipe | { message?: string }>(response)) ??
+        (await readJsonSafely<(ManagedRecipe & { recipeUrl?: string }) | { message?: string }>(response)) ??
         {
           message: "الرد من الخادم غير مكتمل.",
         };
@@ -1205,12 +1205,16 @@ export function AdminRecipesStudio({
         type: "recipe-added",
         recipeName: payload.name,
         authorName: payload.authorName,
-        roasterName: payload.roasterName || "بدون محمصة",
+        roasterName: payload.roasterName || "وصفات متنوعة",
       });
-      router.refresh();
       setIsOpen(false);
       resetForm();
-      setStatus("تمت إضافة الوصفة بنجاح.", "success");
+      const params = new URLSearchParams({
+        slug: payload.slug,
+        from: "admin",
+      });
+      router.push(`/recipes/success?${params.toString()}`);
+      return;
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "حدث خطأ أثناء إضافة الوصفة.",
@@ -1321,7 +1325,7 @@ export function AdminRecipesStudio({
           type: "recipe-added",
           recipeName: recipe.name,
           authorName: recipe.authorName,
-          roasterName: recipe.roasterName || "بدون محمصة",
+          roasterName: recipe.roasterName || "وصفات متنوعة",
         });
       });
       router.refresh();
@@ -1740,7 +1744,7 @@ export function AdminRecipesStudio({
                       {recipe.authorName} · {recipe.brewer}
                     </p>
                     <p className="mt-2 break-words text-sm text-black/45 dark:text-[#EAEAEA]/45">
-                      {recipe.roasterName || "بدون محمصة"} · {recipeStatText(recipe)}
+                      {recipe.roasterName || "وصفات متنوعة"} · {recipeStatText(recipe)}
                     </p>
                     <p className="mt-2 text-xs font-bold text-black/40 dark:text-[#EAEAEA]/40">
                       {recipe.pourCount ? `${recipe.pourCount} صبات` : "بدون بيانات صبات"}
@@ -2265,7 +2269,7 @@ export function AdminRecipesStudio({
                               <p className="text-xs font-bold">المحمصة</p>
                             </div>
                             <p className="mt-2 text-base font-bold text-white">
-                              {roasterName || "بدون محمصة"}
+                              {roasterName || "وصفات متنوعة"}
                             </p>
                           </div>
                         </div>

@@ -79,7 +79,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
           <div className="relative z-10 mx-auto w-full max-w-7xl">
             <div className="max-w-4xl rounded-[32px] border border-[color:var(--page-line)] bg-[var(--page-surface)] p-7 shadow-[var(--page-shadow)] backdrop-blur-xl sm:p-10">
               <p className="text-sm font-bold text-[var(--page-muted)]">
-                {managedRecipe.roasterName || roaster?.name || "وصفة جديدة"}
+                {managedRecipe.roasterName || roaster?.name || "وصفات متنوعة"}
               </p>
               <h1 className="mt-4 text-5xl font-bold leading-[1.08] text-[var(--page-fg)] sm:text-7xl">
                 {managedRecipe.name}

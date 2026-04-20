@@ -10,6 +10,8 @@ import { requireAdminApi } from "@/lib/auth/session";
 import { RBAC_PERMISSIONS } from "@/lib/auth/rbac";
 import { logAdminAudit } from "@/lib/auth-db";
 
+const MISC_RECIPES_LABEL = "وصفات متنوعة";
+
 function createSlug(value: string) {
   const normalized = value
     .trim()
@@ -222,6 +224,8 @@ export async function POST(request: Request) {
       body.roasterSlug ?? null,
       body.roasterName ?? null,
     );
+    const fallbackRoasterName = body.roasterName?.trim() || null;
+    const resolvedRoasterName = matchedRoaster?.name ?? fallbackRoasterName ?? MISC_RECIPES_LABEL;
     const { waterMl, ratio } = parseRatioField(ratioInput);
     const existing = await listManagedRecipes();
     const incomingKey = normalizeXbloomUrl(xbloomUrl);
@@ -277,13 +281,19 @@ export async function POST(request: Request) {
       ratio,
       waterMl,
       roasterSlug: matchedRoaster?.slug ?? null,
-      roasterName: matchedRoaster?.name ?? body.roasterName?.trim() ?? null,
+      roasterName: resolvedRoasterName,
       mergeGroupKey,
       brewType,
       xbloomUrl,
     });
 
-    const created = (await listManagedRecipes()).find((recipe) => recipe.slug === slug);
+    const created = await getManagedRecipeBySlug(slug);
+    if (!created) {
+      return NextResponse.json(
+        { message: "تم حفظ الوصفة لكن تعذر قراءة البيانات النهائية." },
+        { status: 500 },
+      );
+    }
     await logAdminAudit({
       adminUserId: auth.context.user.id,
       action: "recipe.create",
@@ -299,7 +309,13 @@ export async function POST(request: Request) {
         brewType,
       },
     });
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(
+      {
+        ...created,
+        recipeUrl: `/recipes/${created.slug}`,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return NextResponse.json(
       {
