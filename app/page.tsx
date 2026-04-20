@@ -8,8 +8,10 @@ import {
 } from "@/components/TopUsedRecipesSection";
 import { XbloomTrackedLink } from "@/components/XbloomTrackedLink";
 import { getRoasterForRecipe, recipes } from "@/lib/data";
+import { appendMiscRecipesRoaster } from "@/lib/misc-recipes-roaster";
 import {
   countManagedRecipes,
+  countManagedRecipesForMiscRoaster,
   listManagedRecipes,
   listManagedRecipesBySlugs,
   listManagedRecipesRandom,
@@ -528,7 +530,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   const normalizedSearchQuery = searchQuery.toLowerCase();
   const shouldSearchAllManagedRecipes = normalizedSearchQuery.length > 0;
 
-  const [roasters, managedRecipes, topXbloomRecipes, managedRecipesCount] =
+  const [baseRoasters, managedRecipes, topXbloomRecipes, managedRecipesCount, miscCounts] =
     await Promise.all([
       listRoasters(),
       shouldSearchAllManagedRecipes
@@ -536,7 +538,12 @@ export default async function Home({ searchParams }: HomePageProps) {
         : listManagedRecipesRandom(48),
       listTopXbloomRecipes(5),
       countManagedRecipes(),
+      countManagedRecipesForMiscRoaster(),
     ]);
+  const roasters = appendMiscRecipesRoaster(baseRoasters, {
+    recipeCount: miscCounts.total,
+    approvedRecipeCount: miscCounts.approved,
+  });
   const topUsageSlugs = [...new Set(topXbloomRecipes.map((entry) => entry.recipeSlug))];
   const topUsageRecipes =
     topUsageSlugs.length > 0

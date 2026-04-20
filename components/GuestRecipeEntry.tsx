@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Roaster } from "@/lib/data";
+import {
+  MISC_RECIPES_LABEL,
+  MISC_RECIPES_ROASTER_SLUG,
+} from "@/lib/misc-recipes-roaster";
 import type { ManagedPourStep } from "@/lib/recipes-db";
 
 type GuestRecipeEntryProps = {
@@ -27,7 +31,6 @@ type XbloomPayload = {
 };
 
 const brewerOptions = ["Omni", "Other", "xBloom", "V60", "Chemex", "Espresso"];
-const MISC_RECIPES_LABEL = "وصفات متنوعة";
 
 async function readJsonSafely<T>(response: Response) {
   const text = await response.text();
@@ -185,9 +188,14 @@ export function GuestRecipeEntry({ roasters }: GuestRecipeEntryProps) {
   const [roasterSlug, setRoasterSlug] = useState("");
   const [brewType, setBrewType] = useState<AdminBrewType>("");
 
+  const selectableRoasters = useMemo(
+    () =>
+      roasters.filter((roaster) => roaster.slug !== MISC_RECIPES_ROASTER_SLUG),
+    [roasters],
+  );
   const matchedRoaster = useMemo(
-    () => roasters.find((roaster) => roaster.slug === roasterSlug) ?? null,
-    [roasterSlug, roasters],
+    () => selectableRoasters.find((roaster) => roaster.slug === roasterSlug) ?? null,
+    [roasterSlug, selectableRoasters],
   );
 
   const canContinueStepTwo =
@@ -361,7 +369,7 @@ export function GuestRecipeEntry({ roasters }: GuestRecipeEntryProps) {
           brewer,
           ratioInput,
           roasterSlug: matchedRoaster?.slug ?? null,
-          roasterName: matchedRoaster?.name ?? null,
+          roasterName: matchedRoaster?.name ?? MISC_RECIPES_LABEL,
           brewType,
           xbloomUrl,
         }),
@@ -585,7 +593,7 @@ export function GuestRecipeEntry({ roasters }: GuestRecipeEntryProps) {
                               className="ui-select ui-select-dark h-14 w-full rounded-[18px] border border-white/12 bg-[#121722] px-4 pr-4 pl-10 text-sm font-bold text-[#EAEAEA] outline-none transition focus:border-white/22"
                             >
                               <option value="">{MISC_RECIPES_LABEL}</option>
-                              {roasters.map((roaster) => (
+                              {selectableRoasters.map((roaster) => (
                                 <option key={roaster.slug} value={roaster.slug}>
                                   {roaster.name}
                                 </option>

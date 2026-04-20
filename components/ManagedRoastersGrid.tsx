@@ -6,6 +6,10 @@ import {
   subscribeToStoredRoasters,
 } from "@/lib/admin-roasters-storage";
 import type { Roaster } from "@/lib/data";
+import {
+  MISC_RECIPES_ROASTER_SLUG,
+  appendMiscRecipesRoaster,
+} from "@/lib/misc-recipes-roaster";
 import { RoasterCard } from "@/components/RoasterCard";
 
 type ManagedRoastersGridProps = {
@@ -29,6 +33,8 @@ function SearchIcon() {
 export function ManagedRoastersGrid({
   initialRoasters,
 }: ManagedRoastersGridProps) {
+  const initialMiscRoaster =
+    initialRoasters.find((roaster) => roaster.slug === MISC_RECIPES_ROASTER_SLUG) ?? null;
   const [roasters, setRoasters] = useState(initialRoasters);
   const [query, setQuery] = useState("");
 
@@ -39,7 +45,12 @@ export function ManagedRoastersGrid({
       try {
         const nextRoasters = await fetchStoredRoasters();
         if (!cancelled) {
-          setRoasters(nextRoasters);
+          setRoasters(
+            appendMiscRecipesRoaster(nextRoasters, {
+              recipeCount: initialMiscRoaster?.recipeCount ?? 0,
+              approvedRecipeCount: initialMiscRoaster?.approvedRecipeCount ?? 0,
+            }),
+          );
         }
       } catch {
         if (!cancelled) {
@@ -58,7 +69,7 @@ export function ManagedRoastersGrid({
       cancelled = true;
       unsubscribe();
     };
-  }, [initialRoasters]);
+  }, [initialRoasters, initialMiscRoaster?.approvedRecipeCount, initialMiscRoaster?.recipeCount]);
 
   const filteredRoasters = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();

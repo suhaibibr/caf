@@ -1,6 +1,10 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDbPool } from "@/lib/db";
 import { isRecoverableDbError } from "@/lib/db-errors";
+import {
+  MISC_RECIPES_LABEL,
+  MISC_RECIPES_ROASTER_SLUG,
+} from "@/lib/misc-recipes-roaster";
 
 export type ManagedPourStep = {
   name: string;
@@ -60,6 +64,11 @@ type RecipeSlugRow = RowDataPacket & {
 
 type CountRow = RowDataPacket & {
   count: number;
+};
+
+type ManagedRecipeCountsRow = RowDataPacket & {
+  total_count: number;
+  approved_count: number;
 };
 
 export type ManagedRecipeInput = {
@@ -334,6 +343,40 @@ export async function countManagedRecipes() {
   }
 }
 
+export async function countManagedRecipesForMiscRoaster() {
+  try {
+    await ensureRecipesReady();
+    const pool = getDbPool();
+    const [rows] = await pool.query<ManagedRecipeCountsRow[]>(
+      `
+        SELECT
+          COUNT(*) AS total_count,
+          SUM(CASE WHEN is_roaster_approved = 1 THEN 1 ELSE 0 END) AS approved_count
+        FROM recipes
+        WHERE roaster_slug = ?
+          OR roaster_slug IS NULL
+          OR roaster_slug = ''
+          OR (
+            roaster_name = ?
+            AND (roaster_slug IS NULL OR roaster_slug = '')
+          )
+      `,
+      [MISC_RECIPES_ROASTER_SLUG, MISC_RECIPES_LABEL],
+    );
+
+    return {
+      total: Number(rows[0]?.total_count ?? 0),
+      approved: Number(rows[0]?.approved_count ?? 0),
+    };
+  } catch (error) {
+    if (!isRecoverableDbError(error)) {
+      throw error;
+    }
+    console.error("Database unavailable in countManagedRecipesForMiscRoaster, returning 0.");
+    return { total: 0, approved: 0 };
+  }
+}
+
 export async function listManagedRecipesRandom(limit = 8) {
   try {
     await ensureRecipesReady();
@@ -358,14 +401,58 @@ export async function listManagedRecipesRandom(limit = 8) {
   }
 }
 
-export async function listManagedRecipesByRoaster(roasterSlug: string) {
+export async function listManagedRecipesByRoaster(
+  roasterSlug: string,
+  roasterName?: string | null,
+) {
   try {
     await ensureRecipesReady();
     const pool = getDbPool();
+    const normalizedRoasterName = roasterName?.trim() ?? "";
+    const isMiscTarget =
+      normalizedRoasterName === MISC_RECIPES_LABEL ||
+      slugCandidates(roasterSlug).includes(MISC_RECIPES_ROASTER_SLUG);
+
+    if (isMiscTarget) {
+      const [rows] = await pool.execute<ManagedRecipeRow[]>(
+        `
+          SELECT *
+          FROM recipes
+          WHERE roaster_slug = ?
+            OR roaster_slug IS NULL
+            OR roaster_slug = ''
+            OR (
+              roaster_name = ?
+              AND (roaster_slug IS NULL OR roaster_slug = '')
+            )
+          ORDER BY updated_at DESC, created_at DESC
+        `,
+        [MISC_RECIPES_ROASTER_SLUG, MISC_RECIPES_LABEL],
+      );
+      return rows.map(mapRecipeRow);
+    }
+
     for (const candidate of slugCandidates(roasterSlug)) {
       const [rows] = await pool.execute<ManagedRecipeRow[]>(
         "SELECT * FROM recipes WHERE roaster_slug = ? ORDER BY updated_at DESC, created_at DESC",
         [candidate],
+      );
+
+      if (rows.length > 0) {
+        return rows.map(mapRecipeRow);
+      }
+    }
+
+    if (normalizedRoasterName) {
+      const [rows] = await pool.execute<ManagedRecipeRow[]>(
+        `
+          SELECT *
+          FROM recipes
+          WHERE roaster_name = ?
+            AND (roaster_slug IS NULL OR roaster_slug = '')
+          ORDER BY updated_at DESC, created_at DESC
+        `,
+        [normalizedRoasterName],
       );
 
       if (rows.length > 0) {

@@ -2,7 +2,9 @@ import type { RowDataPacket } from "mysql2";
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import { getClientIp, isTrustedOrigin } from "@/lib/auth/request";
+import type { Roaster } from "@/lib/data";
 import { isRecoverableDbError } from "@/lib/db-errors";
+import { MISC_RECIPES_LABEL } from "@/lib/misc-recipes-roaster";
 import { createRecipeSubmission, ensureRecipeSubmissionsReady } from "@/lib/recipe-submissions-db";
 import { listRoasters } from "@/lib/roasters-db";
 import { listManagedRecipes, saveManagedRecipe } from "@/lib/recipes-db";
@@ -31,8 +33,6 @@ type SubmissionBody = {
 type CountRow = RowDataPacket & {
   count: number;
 };
-
-const MISC_RECIPES_LABEL = "وصفات متنوعة";
 
 function createSlug(value: string) {
   return value
@@ -95,6 +95,28 @@ function isValidXbloomUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function resolveRoaster(roasters: Roaster[], slug: string | null, name: string | null) {
+  if (slug) {
+    return roasters.find((roaster) => roaster.slug === slug) ?? null;
+  }
+
+  if (!name) {
+    return null;
+  }
+
+  const normalized = name.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return (
+    roasters.find(
+      (roaster) =>
+        roaster.name === normalized || roaster.shortName === normalized,
+    ) ?? null
+  );
 }
 
 async function isIpRateLimited(ipAddress: string) {
@@ -245,9 +267,7 @@ export async function POST(request: Request) {
     }
 
     const roasters = await listRoasters();
-    const matchedRoaster = roasterSlug
-      ? roasters.find((roaster) => roaster.slug === roasterSlug) ?? null
-      : null;
+    const matchedRoaster = resolveRoaster(roasters, roasterSlug, roasterName);
     const resolvedRoasterName = matchedRoaster?.name ?? roasterName ?? MISC_RECIPES_LABEL;
     const { waterMl, ratio } = parseRatioField(ratioInput);
 

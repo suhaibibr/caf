@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { RBAC_PERMISSIONS } from "@/lib/auth/rbac";
 import { requireAdminApi } from "@/lib/auth/session";
 import { logAdminAudit } from "@/lib/auth-db";
+import type { Roaster } from "@/lib/data";
+import { MISC_RECIPES_LABEL } from "@/lib/misc-recipes-roaster";
 import {
   deleteRecipeSubmissions,
   getRecipeSubmissionById,
@@ -43,8 +45,6 @@ type BulkActionBody =
       };
     };
 
-const MISC_RECIPES_LABEL = "وصفات متنوعة";
-
 function createSlug(value: string) {
   return value
     .trim()
@@ -85,6 +85,28 @@ function normalizeXbloomUrl(value: string) {
   } catch {
     return raw.toLowerCase();
   }
+}
+
+function resolveRoaster(roasters: Roaster[], slug: string | null, name: string | null) {
+  if (slug) {
+    return roasters.find((roaster) => roaster.slug === slug) ?? null;
+  }
+
+  if (!name) {
+    return null;
+  }
+
+  const normalized = name.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return (
+    roasters.find(
+      (roaster) =>
+        roaster.name === normalized || roaster.shortName === normalized,
+    ) ?? null
+  );
 }
 
 function sanitizeSubmissionInput(
@@ -336,10 +358,12 @@ export async function PATCH(request: Request) {
       existingXbloom.add(normalizedXbloom);
 
       const { waterMl, ratio } = parseRatioField(submission.ratioInput);
-      const matchedRoaster = submission.roasterSlug
-        ? roasters.find((roaster) => roaster.slug === submission.roasterSlug) ?? null
-        : null;
       const fallbackRoasterName = submission.roasterName?.trim() || null;
+      const matchedRoaster = resolveRoaster(
+        roasters,
+        submission.roasterSlug,
+        fallbackRoasterName,
+      );
       const resolvedRoasterName = matchedRoaster?.name ?? fallbackRoasterName ?? MISC_RECIPES_LABEL;
 
       await saveManagedRecipe({

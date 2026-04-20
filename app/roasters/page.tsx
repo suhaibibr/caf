@@ -1,11 +1,20 @@
 import { ManagedRoastersGrid } from "@/components/ManagedRoastersGrid";
 import { NavBar } from "@/components/NavBar";
+import { appendMiscRecipesRoaster } from "@/lib/misc-recipes-roaster";
+import { countManagedRecipesForMiscRoaster } from "@/lib/recipes-db";
 import { listRoasters } from "@/lib/roasters-db";
 
 export const revalidate = 60;
 
 export default async function RoastersPage() {
-  const roasters = await listRoasters();
+  const [baseRoasters, miscCounts] = await Promise.all([
+    listRoasters(),
+    countManagedRecipesForMiscRoaster(),
+  ]);
+  const roasters = appendMiscRecipesRoaster(baseRoasters, {
+    recipeCount: miscCounts.total,
+    approvedRecipeCount: miscCounts.approved,
+  });
 
   return (
     <main className="theme-page page-shell min-h-screen px-8 pt-28 pb-16 sm:px-12">

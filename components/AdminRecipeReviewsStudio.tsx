@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { MISC_RECIPES_LABEL } from "@/lib/misc-recipes-roaster";
 
 type Submission = {
   id: number;
@@ -178,7 +179,7 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
             brewer: editing.brewer,
             brewType: editing.brewType,
             iceGrams: editing.brewType === "cold" ? Number(editing.iceGrams || 0) : null,
-            roasterName: editing.roasterName || null,
+            roasterName: editing.roasterName || MISC_RECIPES_LABEL,
             roasterSlug: null,
             xbloomUrl: editing.xbloomUrl,
           },
@@ -201,7 +202,7 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
                 brewer: editing.brewer,
                 brewType: editing.brewType,
                 iceGrams: editing.brewType === "cold" ? Number(editing.iceGrams || 0) : null,
-                roasterName: editing.roasterName || null,
+                roasterName: editing.roasterName || MISC_RECIPES_LABEL,
                 xbloomUrl: editing.xbloomUrl,
               }
             : item,

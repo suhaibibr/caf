@@ -4,8 +4,12 @@ import {
   type RoasterPageRecipe,
 } from "@/components/ManagedRoasterPage";
 import { getRecipesByRoaster } from "@/lib/data";
-import { getRoasterBySlug, listRoasters } from "@/lib/roasters-db";
-import { listManagedRecipesByRoaster } from "@/lib/recipes-db";
+import { appendMiscRecipesRoaster } from "@/lib/misc-recipes-roaster";
+import { listRoasters } from "@/lib/roasters-db";
+import {
+  countManagedRecipesForMiscRoaster,
+  listManagedRecipesByRoaster,
+} from "@/lib/recipes-db";
 
 type RoasterPageProps = {
   params: Promise<{ slug: string }>;
@@ -26,7 +30,14 @@ export async function generateMetadata({
 }: RoasterPageProps): Promise<Metadata> {
   const { slug: rawSlug } = await params;
   const slug = normalizeSlug(rawSlug);
-  const roaster = await getRoasterBySlug(slug);
+  const [roasters, miscCounts] = await Promise.all([
+    listRoasters(),
+    countManagedRecipesForMiscRoaster(),
+  ]);
+  const roaster = appendMiscRecipesRoaster(roasters, {
+    recipeCount: miscCounts.total,
+    approvedRecipeCount: miscCounts.approved,
+  }).find((item) => item.slug === slug);
 
   if (!roaster) {
     return {
@@ -44,11 +55,16 @@ export async function generateMetadata({
 export default async function RoasterPage({ params }: RoasterPageProps) {
   const { slug: rawSlug } = await params;
   const slug = normalizeSlug(rawSlug);
-  const [roaster, roasters, managedRecipes] = await Promise.all([
-    getRoasterBySlug(slug),
+  const [baseRoasters, miscCounts] = await Promise.all([
     listRoasters(),
-    listManagedRecipesByRoaster(slug),
+    countManagedRecipesForMiscRoaster(),
   ]);
+  const roasters = appendMiscRecipesRoaster(baseRoasters, {
+    recipeCount: miscCounts.total,
+    approvedRecipeCount: miscCounts.approved,
+  });
+  const roaster = roasters.find((item) => item.slug === slug) ?? null;
+  const managedRecipes = await listManagedRecipesByRoaster(slug, roaster?.name ?? null);
   const staticRecipes = roaster ? getRecipesByRoaster(roaster.slug) : [];
   const roasterRecipes: RoasterPageRecipe[] = [
     ...managedRecipes.map((recipe) => ({
