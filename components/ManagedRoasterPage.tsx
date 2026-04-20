@@ -911,10 +911,6 @@ export function ManagedRoasterPage({
         <div className="mx-auto max-w-7xl">
           <div className="theme-surface relative z-10 -mt-8 grid min-h-16 items-center gap-4 rounded-[20px] px-4 py-4 backdrop-blur-xl md:grid-cols-[1fr_auto_1fr] md:px-6">
             <div className="flex flex-wrap items-center justify-center gap-3 md:justify-start">
-              <div className="theme-surface-soft flex items-center gap-2 rounded-[14px] px-3 py-2 text-sm font-bold text-[var(--page-muted)]">
-                <span>24 وصفة لكل صفحة</span>
-              </div>
-
               <label className="theme-surface-soft flex h-10 w-full max-w-[260px] items-center gap-2 rounded-[14px] px-3 text-[var(--page-muted)] transition duration-200 hover:brightness-105">
                 <SearchIcon />
                 <input

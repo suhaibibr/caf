@@ -15,6 +15,8 @@ type RouteContext = {
   params: Promise<{ slug: string }>;
 };
 
+const MISC_RECIPES_LABEL = "وصفات متنوعة";
+
 function parseRatioField(value: string) {
   const normalized = value.trim();
   const waterMatch = normalized.match(/(\d+(?:\.\d+)?)\s*ml/i);
@@ -226,7 +228,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       if (!requestedSlug && !requestedName) {
         roasterSlug = null;
-        roasterName = null;
+        roasterName = MISC_RECIPES_LABEL;
       } else {
         const roasters = await listRoasters();
         const matched = resolveRoaster(roasters, requestedSlug, requestedName);

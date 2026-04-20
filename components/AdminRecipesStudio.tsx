@@ -54,6 +54,7 @@ type BatchDuplicateEntry = {
 };
 
 const ADMIN_RECIPES_PER_PAGE = 24;
+const MISC_RECIPES_LABEL = "وصفات متنوعة";
 
 const brewerOptions = ["Omni", "Other", "xBloom", "V60", "Chemex", "Espresso"];
 
@@ -575,10 +576,8 @@ export function AdminRecipesStudio({
         return;
       }
 
-      const nameLabel = recipe.roasterName?.trim();
-      if (nameLabel) {
-        optionsMap.set(`name:${nameLabel}`, nameLabel);
-      }
+      const nameLabel = recipe.roasterName?.trim() || MISC_RECIPES_LABEL;
+      optionsMap.set(`name:${nameLabel}`, nameLabel);
     });
 
     return [...optionsMap.entries()]
@@ -591,10 +590,7 @@ export function AdminRecipesStudio({
         return false;
       }
 
-      if (
-        recipesFilterMode === "unassigned" &&
-        (recipe.roasterSlug || recipe.roasterName?.trim())
-      ) {
+      if (recipesFilterMode === "unassigned" && recipe.roasterSlug) {
         return false;
       }
 
@@ -607,7 +603,11 @@ export function AdminRecipesStudio({
       }
 
       if (recipesRoasterFilter.startsWith("name:")) {
-        return (recipe.roasterName?.trim() || "") === recipesRoasterFilter.slice(5);
+        const expectedName = recipesRoasterFilter.slice(5);
+        const recipeRoasterName =
+          recipe.roasterName?.trim() ||
+          (recipe.roasterSlug ? "" : MISC_RECIPES_LABEL);
+        return recipeRoasterName === expectedName;
       }
 
       return true;
@@ -1205,7 +1205,7 @@ export function AdminRecipesStudio({
         type: "recipe-added",
         recipeName: payload.name,
         authorName: payload.authorName,
-        roasterName: payload.roasterName || "وصفات متنوعة",
+        roasterName: payload.roasterName || MISC_RECIPES_LABEL,
       });
       setIsOpen(false);
       resetForm();
@@ -1325,7 +1325,7 @@ export function AdminRecipesStudio({
           type: "recipe-added",
           recipeName: recipe.name,
           authorName: recipe.authorName,
-          roasterName: recipe.roasterName || "وصفات متنوعة",
+          roasterName: recipe.roasterName || MISC_RECIPES_LABEL,
         });
       });
       router.refresh();
@@ -1744,7 +1744,7 @@ export function AdminRecipesStudio({
                       {recipe.authorName} · {recipe.brewer}
                     </p>
                     <p className="mt-2 break-words text-sm text-black/45 dark:text-[#EAEAEA]/45">
-                      {recipe.roasterName || "وصفات متنوعة"} · {recipeStatText(recipe)}
+                      {recipe.roasterName || MISC_RECIPES_LABEL} · {recipeStatText(recipe)}
                     </p>
                     <p className="mt-2 text-xs font-bold text-black/40 dark:text-[#EAEAEA]/40">
                       {recipe.pourCount ? `${recipe.pourCount} صبات` : "بدون بيانات صبات"}
@@ -2269,7 +2269,7 @@ export function AdminRecipesStudio({
                               <p className="text-xs font-bold">المحمصة</p>
                             </div>
                             <p className="mt-2 text-base font-bold text-white">
-                              {roasterName || "وصفات متنوعة"}
+                              {roasterName || MISC_RECIPES_LABEL}
                             </p>
                           </div>
                         </div>

@@ -10,6 +10,7 @@ import { XbloomTrackedLink } from "@/components/XbloomTrackedLink";
 import { getRoasterForRecipe, recipes } from "@/lib/data";
 import {
   countManagedRecipes,
+  listManagedRecipes,
   listManagedRecipesBySlugs,
   listManagedRecipesRandom,
 } from "@/lib/recipes-db";
@@ -525,14 +526,17 @@ export default async function Home({ searchParams }: HomePageProps) {
   const rawQuery = Array.isArray(params.q) ? params.q[0] ?? "" : params.q ?? "";
   const searchQuery = rawQuery.trim();
   const normalizedSearchQuery = searchQuery.toLowerCase();
+  const shouldSearchAllManagedRecipes = normalizedSearchQuery.length > 0;
 
-  const [roasters, randomManagedRecipes, topXbloomRecipes, managedRecipesCount] =
+  const [roasters, managedRecipes, topXbloomRecipes, managedRecipesCount] =
     await Promise.all([
-    listRoasters(),
-    listManagedRecipesRandom(48),
-    listTopXbloomRecipes(5),
-    countManagedRecipes(),
-  ]);
+      listRoasters(),
+      shouldSearchAllManagedRecipes
+        ? listManagedRecipes()
+        : listManagedRecipesRandom(48),
+      listTopXbloomRecipes(5),
+      countManagedRecipes(),
+    ]);
   const topUsageSlugs = [...new Set(topXbloomRecipes.map((entry) => entry.recipeSlug))];
   const topUsageRecipes =
     topUsageSlugs.length > 0
@@ -572,25 +576,32 @@ export default async function Home({ searchParams }: HomePageProps) {
       };
     })
     .filter((entry): entry is TopRecipeUsageCard => entry !== null);
-  const generalManagedRecipes = randomManagedRecipes
-    .map((recipe, index) => ({
-      image:
-        (recipe.roasterSlug ? roasterMapBySlug.get(recipe.roasterSlug)?.coverImage : null) ??
-        EXCLUSIVE_RECIPE_FALLBACK_IMAGES[index % EXCLUSIVE_RECIPE_FALLBACK_IMAGES.length],
-      slug: recipe.slug,
-      name: recipe.name,
-      href: `/recipes/${recipe.slug}`,
-      sourceLabel: "محمصة وصفات متنوعة",
-      authorName: recipe.authorName,
-      isRoasterApproved: recipe.isRoasterApproved,
-      grams: recipe.grams,
-      iceGrams: recipe.iceGrams,
-      ratio: recipe.ratio,
-      waterMl: recipe.waterMl,
-      brewType: recipe.brewType,
-      firstPourTemperature: recipe.firstPourTemperature,
-      xbloomUrl: recipe.xbloomUrl,
-    }));
+  const generalManagedRecipes = managedRecipes
+    .map((recipe, index) => {
+      const resolvedRoasterName =
+        (recipe.roasterSlug ? roasterMapBySlug.get(recipe.roasterSlug)?.name : null) ??
+        recipe.roasterName?.trim() ??
+        "وصفات متنوعة";
+
+      return {
+        image:
+          (recipe.roasterSlug ? roasterMapBySlug.get(recipe.roasterSlug)?.coverImage : null) ??
+          EXCLUSIVE_RECIPE_FALLBACK_IMAGES[index % EXCLUSIVE_RECIPE_FALLBACK_IMAGES.length],
+        slug: recipe.slug,
+        name: recipe.name,
+        href: `/recipes/${recipe.slug}`,
+        sourceLabel: `محمصة ${resolvedRoasterName}`,
+        authorName: recipe.authorName,
+        isRoasterApproved: recipe.isRoasterApproved,
+        grams: recipe.grams,
+        iceGrams: recipe.iceGrams,
+        ratio: recipe.ratio,
+        waterMl: recipe.waterMl,
+        brewType: recipe.brewType,
+        firstPourTemperature: recipe.firstPourTemperature,
+        xbloomUrl: recipe.xbloomUrl,
+      };
+    });
   const staticFallbackRecipes: ExclusiveRecipeCardData[] = recipes.map((recipe, index) => {
     const brewLiquidGrams = getFirstMatchedNumber(
       recipe.ingredients,
@@ -638,7 +649,10 @@ export default async function Home({ searchParams }: HomePageProps) {
             .toLowerCase();
           return searchable.includes(normalizedSearchQuery);
         });
-  const popularRecipes = filteredRecipes.slice(0, 12);
+  const popularRecipes =
+    normalizedSearchQuery.length === 0
+      ? filteredRecipes.slice(0, 12)
+      : filteredRecipes;
   const hasRoasters = roasters.length > 0;
   const totalRoasters = roasters.length;
   const totalRecipes = recipes.length + managedRecipesCount;
