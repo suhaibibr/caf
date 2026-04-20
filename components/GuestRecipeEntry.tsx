@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { Roaster } from "@/lib/data";
 import {
   MISC_RECIPES_LABEL,
-  MISC_RECIPES_ROASTER_SLUG,
+  isMiscRecipesName,
+  isMiscRecipesSlug,
 } from "@/lib/misc-recipes-roaster";
 import type { ManagedPourStep } from "@/lib/recipes-db";
 
@@ -190,7 +191,12 @@ export function GuestRecipeEntry({ roasters }: GuestRecipeEntryProps) {
 
   const selectableRoasters = useMemo(
     () =>
-      roasters.filter((roaster) => roaster.slug !== MISC_RECIPES_ROASTER_SLUG),
+      roasters.filter(
+        (roaster) =>
+          !isMiscRecipesSlug(roaster.slug) &&
+          !isMiscRecipesName(roaster.name) &&
+          !isMiscRecipesName(roaster.shortName),
+      ),
     [roasters],
   );
   const matchedRoaster = useMemo(

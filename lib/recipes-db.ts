@@ -2,8 +2,10 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDbPool } from "@/lib/db";
 import { isRecoverableDbError } from "@/lib/db-errors";
 import {
-  MISC_RECIPES_LABEL,
-  MISC_RECIPES_ROASTER_SLUG,
+  getMiscRecipesNameAliases,
+  getMiscRecipesSlugAliases,
+  isMiscRecipesName,
+  isMiscRecipesSlug,
 } from "@/lib/misc-recipes-roaster";
 
 export type ManagedPourStep = {
@@ -347,21 +349,22 @@ export async function countManagedRecipesForMiscRoaster() {
   try {
     await ensureRecipesReady();
     const pool = getDbPool();
+    const miscSlugAliases = getMiscRecipesSlugAliases();
+    const miscNameAliases = getMiscRecipesNameAliases();
+    const slugPlaceholders = miscSlugAliases.map(() => "?").join(", ");
+    const namePlaceholders = miscNameAliases.map(() => "?").join(", ");
     const [rows] = await pool.query<ManagedRecipeCountsRow[]>(
       `
         SELECT
           COUNT(*) AS total_count,
           SUM(CASE WHEN is_roaster_approved = 1 THEN 1 ELSE 0 END) AS approved_count
         FROM recipes
-        WHERE roaster_slug = ?
+        WHERE roaster_slug IN (${slugPlaceholders})
           OR roaster_slug IS NULL
           OR roaster_slug = ''
-          OR (
-            roaster_name = ?
-            AND (roaster_slug IS NULL OR roaster_slug = '')
-          )
+          OR roaster_name IN (${namePlaceholders})
       `,
-      [MISC_RECIPES_ROASTER_SLUG, MISC_RECIPES_LABEL],
+      [...miscSlugAliases, ...miscNameAliases],
     );
 
     return {
@@ -410,24 +413,34 @@ export async function listManagedRecipesByRoaster(
     const pool = getDbPool();
     const normalizedRoasterName = roasterName?.trim() ?? "";
     const isMiscTarget =
-      normalizedRoasterName === MISC_RECIPES_LABEL ||
-      slugCandidates(roasterSlug).includes(MISC_RECIPES_ROASTER_SLUG);
+      isMiscRecipesName(normalizedRoasterName) ||
+      slugCandidates(roasterSlug).some((candidate) => isMiscRecipesSlug(candidate));
 
     if (isMiscTarget) {
+      const miscSlugAliases = new Set<string>([
+        ...getMiscRecipesSlugAliases(),
+        ...slugCandidates(roasterSlug),
+      ]);
+      const miscNameAliases = new Set<string>([
+        ...getMiscRecipesNameAliases(),
+      ]);
+      if (normalizedRoasterName) {
+        miscNameAliases.add(normalizedRoasterName);
+      }
+
+      const slugPlaceholders = [...miscSlugAliases].map(() => "?").join(", ");
+      const namePlaceholders = [...miscNameAliases].map(() => "?").join(", ");
       const [rows] = await pool.execute<ManagedRecipeRow[]>(
         `
           SELECT *
           FROM recipes
-          WHERE roaster_slug = ?
+          WHERE roaster_slug IN (${slugPlaceholders})
             OR roaster_slug IS NULL
             OR roaster_slug = ''
-            OR (
-              roaster_name = ?
-              AND (roaster_slug IS NULL OR roaster_slug = '')
-            )
+            OR roaster_name IN (${namePlaceholders})
           ORDER BY updated_at DESC, created_at DESC
         `,
-        [MISC_RECIPES_ROASTER_SLUG, MISC_RECIPES_LABEL],
+        [...miscSlugAliases, ...miscNameAliases],
       );
       return rows.map(mapRecipeRow);
     }

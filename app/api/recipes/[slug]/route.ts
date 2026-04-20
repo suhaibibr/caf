@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Roaster } from "@/lib/data";
+import {
+  MISC_RECIPES_LABEL,
+  isMiscRecipesName,
+  isMiscRecipesSlug,
+} from "@/lib/misc-recipes-roaster";
 import { listRoasters } from "@/lib/roasters-db";
 import {
   deleteManagedRecipe,
@@ -14,8 +19,6 @@ import { logAdminAudit } from "@/lib/auth-db";
 type RouteContext = {
   params: Promise<{ slug: string }>;
 };
-
-const MISC_RECIPES_LABEL = "وصفات متنوعة";
 
 function parseRatioField(value: string) {
   const normalized = value.trim();
@@ -67,6 +70,17 @@ function resolveRoaster(roasters: Roaster[], slug: string | null, name: string |
   const normalized = name.trim();
   if (!normalized) {
     return null;
+  }
+
+  if (isMiscRecipesName(normalized)) {
+    return (
+      roasters.find(
+        (roaster) =>
+          isMiscRecipesSlug(roaster.slug) ||
+          isMiscRecipesName(roaster.name) ||
+          isMiscRecipesName(roaster.shortName),
+      ) ?? null
+    );
   }
 
   return (

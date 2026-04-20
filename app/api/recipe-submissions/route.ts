@@ -4,7 +4,11 @@ import { getDbPool } from "@/lib/db";
 import { getClientIp, isTrustedOrigin } from "@/lib/auth/request";
 import type { Roaster } from "@/lib/data";
 import { isRecoverableDbError } from "@/lib/db-errors";
-import { MISC_RECIPES_LABEL } from "@/lib/misc-recipes-roaster";
+import {
+  MISC_RECIPES_LABEL,
+  isMiscRecipesName,
+  isMiscRecipesSlug,
+} from "@/lib/misc-recipes-roaster";
 import { createRecipeSubmission, ensureRecipeSubmissionsReady } from "@/lib/recipe-submissions-db";
 import { listRoasters } from "@/lib/roasters-db";
 import { listManagedRecipes, saveManagedRecipe } from "@/lib/recipes-db";
@@ -109,6 +113,17 @@ function resolveRoaster(roasters: Roaster[], slug: string | null, name: string |
   const normalized = name.trim();
   if (!normalized) {
     return null;
+  }
+
+  if (isMiscRecipesName(normalized)) {
+    return (
+      roasters.find(
+        (roaster) =>
+          isMiscRecipesSlug(roaster.slug) ||
+          isMiscRecipesName(roaster.name) ||
+          isMiscRecipesName(roaster.shortName),
+      ) ?? null
+    );
   }
 
   return (
