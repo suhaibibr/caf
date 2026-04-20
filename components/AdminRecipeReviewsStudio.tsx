@@ -36,6 +36,7 @@ type AdminRecipeReviewsStudioProps = {
 type ApiPayload = {
   message?: string;
   affected?: number;
+  deletedRecipes?: number;
 };
 
 type EditDraft = {
@@ -136,7 +137,16 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
       }
 
       removeIdsLocally(ids);
-      setStatusMessage(action === "delete" ? "تم حذف الوصفات المحددة." : "تمت مراجعة الوصفات المحددة.");
+      if (action === "delete") {
+        const deletedRecipes = Number(payload.deletedRecipes ?? 0);
+        setStatusMessage(
+          deletedRecipes > 0
+            ? `تم حذف ${deletedRecipes} وصفة نهائيًا من الموقع.`
+            : "تم حذف السجلات المحددة. لم يتم العثور على وصفات منشورة مطابقة.",
+        );
+      } else {
+        setStatusMessage("تمت مراجعة الوصفات المحددة.");
+      }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "حدث خطأ أثناء التنفيذ.");
     } finally {
@@ -240,7 +250,7 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
             disabled={isLoading}
             className="rounded-[12px] border border-[#D96C6C]/24 px-3 py-2 text-xs font-bold text-[#A94848] transition hover:bg-[#A94848] hover:text-white disabled:opacity-60 dark:border-[#F18A8A]/20 dark:text-[#F1A4A4]"
           >
-            حذف المحدد
+            حذف نهائي من الموقع
           </button>
         </div>
       </div>
@@ -285,7 +295,7 @@ export function AdminRecipeReviewsStudio({ initialSubmissions }: AdminRecipeRevi
                   }}
                   className="rounded-[10px] border border-[#D96C6C]/24 px-3 py-1.5 text-xs font-bold text-[#A94848] transition hover:bg-[#A94848] hover:text-white dark:border-[#F18A8A]/20 dark:text-[#F1A4A4]"
                 >
-                  حذف
+                  حذف نهائي
                 </button>
               </div>
             </div>

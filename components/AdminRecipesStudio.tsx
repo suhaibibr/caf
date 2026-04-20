@@ -582,7 +582,15 @@ export function AdminRecipesStudio({
 
     return [...optionsMap.entries()]
       .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "ar"));
+      .sort((a, b) => {
+        if (a.label === MISC_RECIPES_LABEL && b.label !== MISC_RECIPES_LABEL) {
+          return -1;
+        }
+        if (b.label === MISC_RECIPES_LABEL && a.label !== MISC_RECIPES_LABEL) {
+          return 1;
+        }
+        return a.label.localeCompare(b.label, "ar");
+      });
   }, [recipes]);
   const filteredRecipes = useMemo(() => {
     return recipes.filter((recipe) => {
@@ -1655,7 +1663,7 @@ export function AdminRecipesStudio({
                 : "border-black/10 text-black/70 hover:bg-black hover:text-white dark:border-white/10 dark:text-[#EAEAEA]/70 dark:hover:bg-[#EAEAEA] dark:hover:text-[#0B0F1A]"
             }`}
           >
-            بدون محمصة
+            وصفات متنوعة
           </button>
           <div className="relative min-w-[220px]">
             <select
@@ -2152,7 +2160,7 @@ export function AdminRecipesStudio({
                                 }}
                                 className="ui-select ui-select-dark h-14 w-full rounded-[18px] border border-white/12 bg-[#121722] px-4 pr-4 pl-10 text-sm font-bold text-[#EAEAEA] outline-none transition focus:border-white/22"
                               >
-                                <option value="">بدون محمصة</option>
+                                <option value="">{MISC_RECIPES_LABEL}</option>
                                 {roasters.map((roaster) => (
                                   <option key={roaster.slug} value={roaster.slug}>
                                     {roaster.name}
@@ -2584,7 +2592,7 @@ export function AdminRecipesStudio({
                               }}
                               className="ui-select ui-select-dark h-14 w-full rounded-[18px] border border-white/12 bg-[#121722] px-4 pr-4 pl-10 text-sm font-bold text-[#EAEAEA] outline-none transition focus:border-white/22"
                             >
-                              <option value="">بدون محمصة</option>
+                              <option value="">{MISC_RECIPES_LABEL}</option>
                               {roasters.map((roaster) => (
                                 <option key={roaster.slug} value={roaster.slug}>
                                   {roaster.name}
@@ -2664,7 +2672,7 @@ export function AdminRecipesStudio({
                                 }
                                 className="ui-select ui-select-dark h-12 w-full rounded-[16px] border border-white/12 bg-[#121722] px-4 pr-4 pl-10 text-sm font-bold text-[#EAEAEA] outline-none transition focus:border-white/22"
                               >
-                                <option value="">بدون محمصة</option>
+                                <option value="">{MISC_RECIPES_LABEL}</option>
                                 {roasters.map((roaster) => (
                                   <option key={roaster.slug} value={roaster.slug}>
                                     {roaster.name}

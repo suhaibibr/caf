@@ -12,7 +12,11 @@ import {
   type RecipeSubmissionStatus,
 } from "@/lib/recipe-submissions-db";
 import { listRoasters } from "@/lib/roasters-db";
-import { listManagedRecipes, saveManagedRecipe } from "@/lib/recipes-db";
+import {
+  deleteManagedRecipe,
+  listManagedRecipes,
+  saveManagedRecipe,
+} from "@/lib/recipes-db";
 
 type BulkActionBody =
   | {
@@ -224,6 +228,31 @@ export async function PATCH(request: Request) {
   }
 
   if (body.action === "delete") {
+    const submissionsToDelete = await Promise.all(
+      ids.map((id) => getRecipeSubmissionById(id)),
+    );
+    const existingRecipes = await listManagedRecipes();
+    const recipeSlugByXbloomKey = new Map(
+      existingRecipes.map((recipe) => [normalizeXbloomUrl(recipe.xbloomUrl), recipe.slug]),
+    );
+    const recipeSlugsToDelete = new Set<string>();
+
+    submissionsToDelete.forEach((submission) => {
+      if (!submission) {
+        return;
+      }
+      const matchedSlug = recipeSlugByXbloomKey.get(
+        normalizeXbloomUrl(submission.xbloomUrl),
+      );
+      if (matchedSlug) {
+        recipeSlugsToDelete.add(matchedSlug);
+      }
+    });
+
+    for (const recipeSlug of recipeSlugsToDelete) {
+      await deleteManagedRecipe(recipeSlug);
+    }
+
     const affected = await deleteRecipeSubmissions(ids);
     await logAdminAudit({
       adminUserId: auth.context.user.id,
@@ -233,9 +262,17 @@ export async function PATCH(request: Request) {
       method: request.method,
       ipAddress: auth.context.ipAddress,
       userAgent: auth.context.userAgent,
-      details: { ids, affected },
+      details: {
+        ids,
+        affected,
+        deletedRecipeSlugs: [...recipeSlugsToDelete],
+      },
     });
-    return NextResponse.json({ ok: true, affected });
+    return NextResponse.json({
+      ok: true,
+      affected,
+      deletedRecipes: recipeSlugsToDelete.size,
+    });
   }
 
   if (body.action === "update") {

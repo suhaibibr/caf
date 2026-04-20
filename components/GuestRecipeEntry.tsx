@@ -27,6 +27,7 @@ type XbloomPayload = {
 };
 
 const brewerOptions = ["Omni", "Other", "xBloom", "V60", "Chemex", "Espresso"];
+const MISC_RECIPES_LABEL = "وصفات متنوعة";
 
 async function readJsonSafely<T>(response: Response) {
   const text = await response.text();
@@ -583,7 +584,7 @@ export function GuestRecipeEntry({ roasters }: GuestRecipeEntryProps) {
                               onChange={(event) => setRoasterSlug(event.target.value)}
                               className="ui-select ui-select-dark h-14 w-full rounded-[18px] border border-white/12 bg-[#121722] px-4 pr-4 pl-10 text-sm font-bold text-[#EAEAEA] outline-none transition focus:border-white/22"
                             >
-                              <option value="">بدون محمصة</option>
+                              <option value="">{MISC_RECIPES_LABEL}</option>
                               {roasters.map((roaster) => (
                                 <option key={roaster.slug} value={roaster.slug}>
                                   {roaster.name}
