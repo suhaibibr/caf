@@ -7,6 +7,15 @@ import { THEME_STORAGE_KEY } from "@/lib/theme";
 export const metadata: Metadata = {
   title: "كــاف",
   description: "منصة عربية لاكتشاف المحامص ووصفات القهوة.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({
@@ -48,6 +57,9 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning className="min-h-full">
         {children}
+        <footer className="border-t border-[color:var(--page-line)] bg-[var(--page-surface)] px-4 py-4 text-center text-sm font-bold text-[var(--page-muted)]">
+          جميع الحقوق محفوظة لـ كاف
+        </footer>
         <SitePresenceTracker />
         <SiteNotificationCenter />
       </body>

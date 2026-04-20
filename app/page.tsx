@@ -516,11 +516,20 @@ function ExclusiveRecipeCard({
   );
 }
 
-export default async function Home() {
+type HomePageProps = {
+  searchParams: Promise<{ q?: string | string[] | undefined }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const params = await searchParams;
+  const rawQuery = Array.isArray(params.q) ? params.q[0] ?? "" : params.q ?? "";
+  const searchQuery = rawQuery.trim();
+  const normalizedSearchQuery = searchQuery.toLowerCase();
+
   const [roasters, randomManagedRecipes, topXbloomRecipes, managedRecipesCount] =
     await Promise.all([
     listRoasters(),
-    listManagedRecipesRandom(8),
+    listManagedRecipesRandom(48),
     listTopXbloomRecipes(5),
     countManagedRecipes(),
   ]);
@@ -529,13 +538,8 @@ export default async function Home() {
     topUsageSlugs.length > 0
       ? await listManagedRecipesBySlugs(topUsageSlugs)
       : [];
-  const isVarietyRoasterName = (value?: string | null) => {
-    const normalized = (value || "").trim().toLowerCase();
-    return normalized === "وصفات متنوعة" || normalized === "محمصة وصفات متنوعة";
-  };
   const roasterMapBySlug = new Map(roasters.map((roaster) => [roaster.slug, roaster]));
-  const varietyRoaster = roasters.find((roaster) => isVarietyRoasterName(roaster.name));
-  const generalRecipesHref = varietyRoaster ? `/roasters/${varietyRoaster.slug}` : "/#recipes";
+  const generalRecipesHref = "/#recipes";
   const topUsageCatalog: Omit<TopRecipeUsageCard, "clicks">[] = topUsageRecipes.map(
     (recipe, index) => ({
       slug: recipe.slug,
@@ -618,10 +622,23 @@ export default async function Home() {
       xbloomUrl: "https://xbloom.com",
     };
   });
-  const popularRecipes =
-    generalManagedRecipes.length > 0
-      ? generalManagedRecipes.slice(0, 8)
-      : staticFallbackRecipes.slice(0, 8);
+  const recipesPool = generalManagedRecipes.length > 0 ? generalManagedRecipes : staticFallbackRecipes;
+  const filteredRecipes =
+    normalizedSearchQuery.length === 0
+      ? recipesPool
+      : recipesPool.filter((recipe) => {
+          const searchable = [
+            recipe.name,
+            recipe.authorName,
+            recipe.sourceLabel,
+            recipe.ratio,
+            recipe.brewType,
+          ]
+            .join(" ")
+            .toLowerCase();
+          return searchable.includes(normalizedSearchQuery);
+        });
+  const popularRecipes = filteredRecipes.slice(0, 12);
   const hasRoasters = roasters.length > 0;
   const totalRoasters = roasters.length;
   const totalRecipes = recipes.length + managedRecipesCount;
@@ -642,9 +659,9 @@ export default async function Home() {
       <section className="relative flex min-h-[62svh] items-center justify-center px-6 pt-28 pb-12 text-center">
         <div className="reveal mx-auto max-w-2xl">
           <h1 className="text-4xl font-bold leading-[1.25] tracking-[0] text-[var(--page-fg)] sm:text-5xl">
-            رحلة القهوة تبدأ
+            جرب محصولك
             <br />
-            من المصدر.
+            بـوصـفـة تـنـاسـبـك
           </h1>
           {!hasRoasters ? (
             <p className="mt-5 text-sm font-bold leading-7 text-[var(--page-muted)]">
@@ -663,7 +680,7 @@ export default async function Home() {
               href={generalRecipesHref}
               className="border border-[color:var(--page-line-strong)] px-6 py-2.5 text-[12px] font-bold text-[var(--page-fg)] transition duration-300 hover:bg-[var(--page-fg)] hover:text-[var(--page-bg)]"
             >
-              الوصفات العامة
+              الوصفات:
             </Link>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-base font-bold text-[var(--page-muted)] sm:text-lg">
@@ -704,17 +721,37 @@ export default async function Home() {
         <div className="mx-auto max-w-5xl">
           <div className="reveal mx-auto flex max-w-4xl flex-col items-center justify-center gap-4 md:flex-row">
             <h2 className="text-center text-2xl font-bold leading-tight text-[var(--page-fg)] sm:text-3xl">
-              وصفات عامة
+              الوصفات:
             </h2>
 
-            <div className="theme-input flex h-11 w-full max-w-md items-center gap-3 rounded-[18px] px-4 text-[var(--page-soft)] transition duration-300 focus-within:border-[color:var(--page-line-strong)] md:w-[360px]">
+            <form
+              method="GET"
+              action="/#recipes"
+              className="theme-input flex h-11 w-full max-w-md items-center gap-3 rounded-[18px] px-4 text-[var(--page-soft)] transition duration-300 focus-within:border-[color:var(--page-line-strong)] md:w-[360px]"
+            >
               <SearchIcon />
               <input
-                aria-label="ابحث"
-                placeholder="ابحث"
-                className="h-full flex-1 border-0 bg-transparent text-sm font-bold text-[var(--page-fg)] outline-none placeholder:text-[var(--page-input-placeholder)]"
+                name="q"
+                aria-label="ابحث في الوصفات"
+                placeholder="ابحث في الوصفات"
+                defaultValue={searchQuery}
+                className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm font-bold text-[var(--page-fg)] outline-none placeholder:text-[var(--page-input-placeholder)]"
               />
-            </div>
+              <button
+                type="submit"
+                className="rounded-full border border-[color:var(--page-line-strong)] px-3 py-1 text-[11px] font-bold text-[var(--page-fg)] transition hover:bg-[var(--page-fg)] hover:text-[var(--page-bg)]"
+              >
+                بحث
+              </button>
+              {searchQuery ? (
+                <Link
+                  href="/#recipes"
+                  className="rounded-full border border-[color:var(--page-line)] px-3 py-1 text-[11px] font-bold text-[var(--page-muted)] transition hover:text-[var(--page-fg)]"
+                >
+                  مسح
+                </Link>
+              ) : null}
+            </form>
           </div>
 
           {popularRecipes.length > 0 ? (
@@ -729,7 +766,9 @@ export default async function Home() {
             </div>
           ) : (
             <div className="theme-surface reveal mt-8 rounded-[22px] px-6 py-10 text-center text-sm font-bold text-[var(--page-muted)]">
-              لا توجد وصفات متاحة في وصفات متنوعة حاليًا.
+              {searchQuery
+                ? "لا توجد نتائج مطابقة لعبارة البحث."
+                : "لا توجد وصفات متاحة حاليًا."}
             </div>
           )}
         </div>

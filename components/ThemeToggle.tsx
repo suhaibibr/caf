@@ -85,7 +85,11 @@ export function ThemeToggle({ tone = "light" }: ThemeToggleProps) {
     () => resolvePreferredTheme(),
     () => "light" as SiteTheme,
   );
-  const isDarkTone = tone === "dark";
+  const isDarkTheme = theme === "dark";
+  const toneShadowClass =
+    tone === "dark"
+      ? "shadow-[0_10px_24px_rgba(0,0,0,0.24)]"
+      : "shadow-[0_8px_20px_rgba(17,17,17,0.12)]";
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -99,10 +103,10 @@ export function ThemeToggle({ tone = "light" }: ThemeToggleProps) {
       onClick={toggleTheme}
       aria-label={theme === "dark" ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
       className={`grid h-10 w-10 place-items-center rounded-full border transition ${
-        isDarkTone
-          ? "border-white/12 bg-white/[0.06] text-[#EAEAEA]/78 hover:bg-white/[0.12] hover:text-[#EAEAEA]"
-          : "border-black/8 bg-white/70 text-black/62 hover:bg-white hover:text-black"
-      }`}
+        isDarkTheme
+          ? "border-white/18 bg-[#121927]/86 text-[#EAEAEA]/86 hover:bg-[#182135] hover:text-[#EAEAEA]"
+          : "border-black/14 bg-[#F7F7F2]/92 text-black/70 hover:bg-white hover:text-black"
+      } ${toneShadowClass}`}
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
     </button>

@@ -139,21 +139,8 @@ function withStaticRecipeCount(roaster: Roaster) {
 
 async function ensureIndexExists(indexName: string, sql: string) {
   const pool = getDbPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `
-      SELECT INDEX_NAME
-      FROM information_schema.statistics
-      WHERE table_schema = DATABASE()
-        AND table_name = 'roasters'
-        AND index_name = ?
-      LIMIT 1
-    `,
-    [indexName],
-  );
-
-  if (!rows[0]) {
-    await pool.execute(sql);
-  }
+  void indexName;
+  await pool.execute(sql);
 }
 
 async function ensureRoastersTable() {
@@ -168,16 +155,16 @@ async function ensureRoastersTable() {
       about TEXT NOT NULL,
       location VARCHAR(255) NOT NULL,
       logo VARCHAR(32) NOT NULL,
-      cover_image LONGTEXT NOT NULL,
+      cover_image TEXT NOT NULL,
       accent VARCHAR(32) NOT NULL,
-      featured TINYINT(1) NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      featured SMALLINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
   await ensureIndexExists(
     "idx_roasters_updated_created",
-    "ALTER TABLE roasters ADD INDEX idx_roasters_updated_created (updated_at, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_roasters_updated_created ON roasters (updated_at, created_at)",
   );
 
   const [countRows] = await pool.query<RowDataPacket[]>(
@@ -246,7 +233,10 @@ async function ensureRoastersTable() {
 
 export async function ensureRoastersReady() {
   if (!setupPromise) {
-    setupPromise = ensureRoastersTable();
+    setupPromise = ensureRoastersTable().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
   }
 
   await setupPromise;
@@ -322,16 +312,18 @@ export async function saveRoaster(input: RoasterInput) {
         accent,
         featured
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        short_name = VALUES(short_name),
-        description = VALUES(description),
-        about = VALUES(about),
-        location = VALUES(location),
-        logo = VALUES(logo),
-        cover_image = VALUES(cover_image),
-        accent = VALUES(accent),
-        featured = VALUES(featured)
+      ON CONFLICT (slug) DO UPDATE
+      SET
+        name = EXCLUDED.name,
+        short_name = EXCLUDED.short_name,
+        description = EXCLUDED.description,
+        about = EXCLUDED.about,
+        location = EXCLUDED.location,
+        logo = EXCLUDED.logo,
+        cover_image = EXCLUDED.cover_image,
+        accent = EXCLUDED.accent,
+        featured = EXCLUDED.featured,
+        updated_at = CURRENT_TIMESTAMP
     `,
     [
       input.slug,

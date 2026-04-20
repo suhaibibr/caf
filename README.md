@@ -25,6 +25,18 @@ This project now includes a complete admin authentication and authorization syst
 - Security event logging + admin audit logging
 - Public recipe submissions separated from admin recipe management
 
+## Neon Baseline (Vercel)
+
+The project now runs on Neon PostgreSQL by default on Vercel:
+
+- `lib/neon.ts` (pooled Postgres connection via `pg`)
+- `lib/db.ts` (runtime DB layer, prefers `DATABASE_URL`)
+- `scripts/check-neon-connection.mjs` (CLI health check)
+- `scripts/migrate-mysql-to-neon.mjs` (data migration from MySQL to Neon)
+- `GET /api/health/neon` (runtime health endpoint)
+
+`DATABASE_URL` is now mandatory at runtime. Hidden fallback to MySQL is disabled unless you explicitly set `ALLOW_MYSQL_FALLBACK=1`.
+
 ## Setup
 
 1. Install dependencies:
@@ -33,32 +45,65 @@ npm install
 ```
 
 
-`test`
-
 2. Create environment file:
 ```bash
 cp .env.example .env.local
 ```
 
 3. Set a strong `AUTH_TOKEN_SECRET` in `.env.local`.
-4. Configure database connection values in `.env.local`:
-   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-   - Managed MySQL (e.g. Aiven): set `DB_SSL_MODE=REQUIRED` (or `VERIFY_CA` with `DB_SSL_CA`)
-   - On Vercel/serverless, reduce DB pressure:
-     - `DB_CONNECTION_LIMIT=2`
-     - `DB_MAX_IDLE=1`
-     - `DB_IDLE_TIMEOUT_MS=60000`
-   - In production, set `APP_ORIGIN` to your deployed domain (for CSRF checks), for example:
-     - `APP_ORIGIN=https://caf-sand.vercel.app`
+4. Configure Neon connection values in `.env.local`:
+   - `DATABASE_URL` (pooled Neon URL, recommended for app traffic)
+   - Optional: `DATABASE_URL_UNPOOLED` (direct URL for migrations/admin tooling)
+   - Optional pool tuning: `PG_CONNECTION_LIMIT`, `PG_IDLE_TIMEOUT_MS`, `PG_CONNECT_TIMEOUT_MS`
+5. Verify Neon connection:
+```bash
+npm run db:check:neon
+```
+6. (If you are migrating old MySQL data) run dry-run first:
+```bash
+npm run db:migrate:mysql-to-neon -- --dry-run
+```
+7. Then run actual migration:
+```bash
+npm run db:migrate:mysql-to-neon -- --truncate
+```
+8. Optional runtime check:
+```bash
+GET /api/health/neon
+```
+9. In production, set `APP_ORIGIN` to your deployed domain (for CSRF checks), for example:
+   - `APP_ORIGIN=https://caf-sand.vercel.app`
 
-5. Create/update the first admin user:
+10. Create/update the first admin user:
 ```bash
 npm run auth:create-user -- --email admin@example.com --password "StrongPass123!"
 ```
 
-6. Start dev server:
+11. Start dev server:
 ```bash
 npm run dev
+```
+
+## MySQL To Neon Migration Notes
+
+- Source MySQL envs:
+  - preferred: `SOURCE_DB_HOST`, `SOURCE_DB_PORT`, `SOURCE_DB_USER`, `SOURCE_DB_PASSWORD`, `SOURCE_DB_NAME`
+  - fallback: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- Target Neon env:
+  - `DATABASE_URL` (or `TARGET_DATABASE_URL`)
+- `--truncate` clears target tables before copy (safe for one-time cutover).
+- Script is idempotent via `ON CONFLICT` upsert behavior.
+
+## Link Neon With Vercel Project
+
+1. Install Neon from Vercel Marketplace and connect it to this Vercel project.
+2. Pull environment variables locally:
+```bash
+vercel env pull .env.local
+```
+3. Confirm `DATABASE_URL` exists, then run:
+```bash
+npm run db:check:neon
 ```
 
 ## Admin Flows

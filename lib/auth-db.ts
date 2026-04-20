@@ -1,5 +1,6 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDbPool } from "@/lib/db";
+import { isRecoverableDbError } from "@/lib/db-errors";
 import type { AuthRole, SecurityEventSeverity } from "@/lib/auth/constants";
 import {
   ADMIN_AUDIT_RETENTION_DAYS,
@@ -117,21 +118,8 @@ function mapSessionRow(row: AuthSessionRow): AuthSessionRecord {
 
 async function ensureAuthUsersColumn(columnName: string, sql: string) {
   const pool = getDbPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `
-      SELECT COLUMN_NAME
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = 'auth_users'
-        AND column_name = ?
-      LIMIT 1
-    `,
-    [columnName],
-  );
-
-  if (!rows[0]) {
-    await pool.execute(sql);
-  }
+  void columnName;
+  await pool.execute(sql);
 }
 
 async function ensureAuthTables() {
@@ -139,28 +127,28 @@ async function ensureAuthTables() {
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS auth_users (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      id BIGSERIAL PRIMARY KEY,
       email VARCHAR(191) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
-      role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      is_super_admin TINYINT(1) NOT NULL DEFAULT 0,
-      must_change_password TINYINT(1) NOT NULL DEFAULT 0,
-      failed_login_attempts INT UNSIGNED NOT NULL DEFAULT 0,
-      locked_until DATETIME NULL,
-      last_login_at DATETIME NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      role VARCHAR(16) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+      is_active SMALLINT NOT NULL DEFAULT 1,
+      is_super_admin SMALLINT NOT NULL DEFAULT 0,
+      must_change_password SMALLINT NOT NULL DEFAULT 0,
+      failed_login_attempts INT NOT NULL DEFAULT 0,
+      locked_until TIMESTAMPTZ NULL,
+      last_login_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
   await ensureAuthUsersColumn(
     "is_super_admin",
-    "ALTER TABLE auth_users ADD COLUMN is_super_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active",
+    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS is_super_admin SMALLINT NOT NULL DEFAULT 0",
   );
   await ensureAuthUsersColumn(
     "must_change_password",
-    "ALTER TABLE auth_users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER is_super_admin",
+    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS must_change_password SMALLINT NOT NULL DEFAULT 0",
   );
 
   const [superAdminCountRows] = await pool.query<CountRow[]>(
@@ -172,9 +160,13 @@ async function ensureAuthTables() {
       `
         UPDATE auth_users
         SET is_super_admin = 1
-        WHERE role = 'admin'
-        ORDER BY created_at ASC
-        LIMIT 1
+        WHERE id = (
+          SELECT id
+          FROM auth_users
+          WHERE role = 'admin'
+          ORDER BY created_at ASC
+          LIMIT 1
+        )
       `,
     );
   }
@@ -182,63 +174,81 @@ async function ensureAuthTables() {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS auth_sessions (
       session_id VARCHAR(64) NOT NULL PRIMARY KEY,
-      user_id BIGINT UNSIGNED NOT NULL,
-      remember_me TINYINT(1) NOT NULL DEFAULT 0,
+      user_id BIGINT NOT NULL,
+      remember_me SMALLINT NOT NULL DEFAULT 0,
       ip_address VARCHAR(64) NOT NULL,
       user_agent VARCHAR(512) NOT NULL,
-      issued_at DATETIME NOT NULL,
-      last_seen_at DATETIME NOT NULL,
-      expires_at DATETIME NOT NULL,
-      revoked_at DATETIME NULL,
+      issued_at TIMESTAMPTZ NOT NULL,
+      last_seen_at TIMESTAMPTZ NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ NULL,
       revoke_reason VARCHAR(191) NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_auth_sessions_user_id (user_id),
-      INDEX idx_auth_sessions_expires_at (expires_at),
-      INDEX idx_auth_sessions_revoked_at (revoked_at),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_auth_sessions_user
         FOREIGN KEY (user_id) REFERENCES auth_users(id)
         ON DELETE CASCADE
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    )
   `);
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_auth_sessions_revoked_at ON auth_sessions (revoked_at)",
+  );
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS auth_login_attempts (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      id BIGSERIAL PRIMARY KEY,
       email_normalized VARCHAR(191) NULL,
       ip_address VARCHAR(64) NOT NULL,
       user_agent VARCHAR(512) NOT NULL,
-      was_success TINYINT(1) NOT NULL DEFAULT 0,
+      was_success SMALLINT NOT NULL DEFAULT 0,
       reason VARCHAR(191) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_auth_login_attempts_created_at (created_at),
-      INDEX idx_auth_login_attempts_ip_created (ip_address, created_at),
-      INDEX idx_auth_login_attempts_email_created (email_normalized, created_at)
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_auth_login_attempts_created_at ON auth_login_attempts (created_at)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_auth_login_attempts_ip_created ON auth_login_attempts (ip_address, created_at)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_auth_login_attempts_email_created ON auth_login_attempts (email_normalized, created_at)",
+  );
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS security_events (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      user_id BIGINT UNSIGNED NULL,
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NULL,
       event_type VARCHAR(64) NOT NULL,
-      severity ENUM('info', 'warning', 'critical') NOT NULL DEFAULT 'info',
+      severity VARCHAR(16) NOT NULL DEFAULT 'info' CHECK (severity IN ('info', 'warning', 'critical')),
       path VARCHAR(255) NULL,
       method VARCHAR(16) NULL,
       ip_address VARCHAR(64) NULL,
       user_agent VARCHAR(512) NULL,
-      details_json LONGTEXT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_security_events_created_at (created_at),
-      INDEX idx_security_events_type (event_type),
-      INDEX idx_security_events_user_id (user_id)
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      details_json TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_security_events_created_at ON security_events (created_at)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events (event_type)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_security_events_user_id ON security_events (user_id)",
+  );
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS admin_audit_logs (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      admin_user_id BIGINT UNSIGNED NOT NULL,
+      id BIGSERIAL PRIMARY KEY,
+      admin_user_id BIGINT NOT NULL,
       action VARCHAR(64) NOT NULL,
       resource_type VARCHAR(64) NOT NULL,
       resource_id VARCHAR(191) NULL,
@@ -246,21 +256,30 @@ async function ensureAuthTables() {
       method VARCHAR(16) NULL,
       ip_address VARCHAR(64) NULL,
       user_agent VARCHAR(512) NULL,
-      details_json LONGTEXT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_admin_audit_logs_created_at (created_at),
-      INDEX idx_admin_audit_logs_admin_user_id (admin_user_id),
-      INDEX idx_admin_audit_logs_action (action),
+      details_json TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_admin_audit_logs_user
         FOREIGN KEY (admin_user_id) REFERENCES auth_users(id)
         ON DELETE CASCADE
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    )
   `);
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs (created_at)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_admin_user_id ON admin_audit_logs (admin_user_id)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_action ON admin_audit_logs (action)",
+  );
 }
 
 export async function ensureAuthReady() {
   if (!setupPromise) {
-    setupPromise = ensureAuthTables();
+    setupPromise = ensureAuthTables().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
   }
   await setupPromise;
 }
@@ -308,12 +327,14 @@ export async function upsertAuthUser(input: {
         must_change_password
       )
       VALUES (?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        password_hash = VALUES(password_hash),
-        role = VALUES(role),
-        is_active = VALUES(is_active),
-        is_super_admin = VALUES(is_super_admin),
-        must_change_password = VALUES(must_change_password)
+      ON CONFLICT (email) DO UPDATE
+      SET
+        password_hash = EXCLUDED.password_hash,
+        role = EXCLUDED.role,
+        is_active = EXCLUDED.is_active,
+        is_super_admin = EXCLUDED.is_super_admin,
+        must_change_password = EXCLUDED.must_change_password,
+        updated_at = CURRENT_TIMESTAMP
     `,
     [
       input.email,
@@ -595,8 +616,8 @@ export async function revokeAuthSession(sessionId: string, reason: string) {
   await pool.execute<ResultSetHeader>(
     `
       UPDATE auth_sessions
-      SET revoked_at = IFNULL(revoked_at, NOW()),
-          revoke_reason = IFNULL(revoke_reason, ?),
+      SET revoked_at = COALESCE(revoked_at, NOW()),
+          revoke_reason = COALESCE(revoke_reason, ?),
           updated_at = CURRENT_TIMESTAMP
       WHERE session_id = ?
     `,
@@ -611,7 +632,7 @@ export async function cleanupExpiredAuthSessions() {
     `
       DELETE FROM auth_sessions
       WHERE expires_at < NOW()
-         OR (revoked_at IS NOT NULL AND revoked_at < (NOW() - INTERVAL 30 DAY))
+         OR (revoked_at IS NOT NULL AND revoked_at < (NOW() - INTERVAL '30 days'))
     `,
   );
 }
@@ -623,7 +644,7 @@ export async function cleanupAuthLogs() {
   const [loginAttemptsResult] = await pool.execute<ResultSetHeader>(
     `
       DELETE FROM auth_login_attempts
-      WHERE created_at < (NOW() - INTERVAL ? DAY)
+      WHERE created_at < (NOW() - (? * INTERVAL '1 day'))
     `,
     [LOGIN_ATTEMPTS_RETENTION_DAYS],
   );
@@ -631,7 +652,7 @@ export async function cleanupAuthLogs() {
   const [securityEventsResult] = await pool.execute<ResultSetHeader>(
     `
       DELETE FROM security_events
-      WHERE created_at < (NOW() - INTERVAL ? DAY)
+      WHERE created_at < (NOW() - (? * INTERVAL '1 day'))
     `,
     [SECURITY_EVENTS_RETENTION_DAYS],
   );
@@ -639,7 +660,7 @@ export async function cleanupAuthLogs() {
   const [adminAuditResult] = await pool.execute<ResultSetHeader>(
     `
       DELETE FROM admin_audit_logs
-      WHERE created_at < (NOW() - INTERVAL ? DAY)
+      WHERE created_at < (NOW() - (? * INTERVAL '1 day'))
     `,
     [ADMIN_AUDIT_RETENTION_DAYS],
   );
@@ -689,6 +710,9 @@ export async function logSecurityEvent(input: {
       ],
     );
   } catch (error) {
+    if (isRecoverableDbError(error)) {
+      return;
+    }
     console.error("Failed to write security event.", {
       eventType: input.eventType,
       error: error instanceof Error ? error.message : String(error),
@@ -737,6 +761,9 @@ export async function logAdminAudit(input: {
       ],
     );
   } catch (error) {
+    if (isRecoverableDbError(error)) {
+      return;
+    }
     console.error("Failed to write admin audit log.", {
       action: input.action,
       resourceType: input.resourceType,

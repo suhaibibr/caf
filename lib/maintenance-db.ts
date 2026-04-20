@@ -8,15 +8,18 @@ async function ensureMaintenanceTable() {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS maintenance_tasks (
       task_name VARCHAR(64) NOT NULL PRIMARY KEY,
-      last_run_at DATETIME NOT NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      last_run_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 }
 
 export async function ensureMaintenanceReady() {
   if (!setupPromise) {
-    setupPromise = ensureMaintenanceTable();
+    setupPromise = ensureMaintenanceTable().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
   }
   await setupPromise;
 }
@@ -32,8 +35,8 @@ export async function acquireMaintenanceTaskRun(taskName: string, intervalMinute
   await pool.execute<ResultSetHeader>(
     `
       INSERT INTO maintenance_tasks (task_name, last_run_at)
-      VALUES (?, '1970-01-01 00:00:00')
-      ON DUPLICATE KEY UPDATE task_name = VALUES(task_name)
+      VALUES (?, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+      ON CONFLICT (task_name) DO NOTHING
     `,
     [taskName],
   );
@@ -41,13 +44,13 @@ export async function acquireMaintenanceTaskRun(taskName: string, intervalMinute
   const [updateResult] = await pool.execute<ResultSetHeader>(
     `
       UPDATE maintenance_tasks
-      SET last_run_at = NOW()
+      SET last_run_at = NOW(),
+          updated_at = CURRENT_TIMESTAMP
       WHERE task_name = ?
-        AND last_run_at < (NOW() - INTERVAL ? MINUTE)
+        AND last_run_at < (NOW() - (? * INTERVAL '1 minute'))
     `,
     [taskName, Math.max(1, Math.floor(intervalMinutes))],
   );
 
   return updateResult.affectedRows > 0;
 }
-

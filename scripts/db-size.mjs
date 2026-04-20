@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import mysql from "mysql2/promise";
+import { Pool as PgPool } from "pg";
 
 function loadEnvFiles() {
   const envFiles = [".env", ".env.local"];
@@ -77,6 +78,48 @@ function getSslConfig() {
 
 async function main() {
   loadEnvFiles();
+
+  const postgresUrl =
+    process.env.DATABASE_URL_UNPOOLED?.trim() ||
+    process.env.DATABASE_URL?.trim() ||
+    "";
+  if (postgresUrl) {
+    const pgPool = new PgPool({
+      connectionString: postgresUrl,
+      max: 1,
+      idleTimeoutMillis: 5_000,
+      connectionTimeoutMillis: 20_000,
+    });
+
+    const dbResult = await pgPool.query(`
+      SELECT
+        current_database() AS db_name,
+        ROUND(pg_database_size(current_database())::numeric / 1024 / 1024, 2) AS size_mb
+    `);
+    const tablesResult = await pgPool.query(`
+      SELECT
+        schemaname || '.' || relname AS table_name,
+        ROUND(pg_total_relation_size(format('%I.%I', schemaname, relname))::numeric / 1024 / 1024, 2) AS size_mb
+      FROM pg_stat_user_tables
+      ORDER BY pg_total_relation_size(format('%I.%I', schemaname, relname)) DESC
+    `);
+
+    const dbName = String(dbResult.rows[0]?.db_name ?? "postgres");
+    const totalMb = Number(dbResult.rows[0]?.size_mb ?? 0);
+    const totalGb = totalMb / 1024;
+
+    console.log(`DB: ${dbName}`);
+    console.log(`TOTAL_MB: ${totalMb.toFixed(2)}`);
+    console.log(`TOTAL_GB: ${totalGb.toFixed(4)}`);
+    console.log("TABLES_MB:");
+    for (const row of tablesResult.rows) {
+      console.log(`${String(row.table_name)}: ${Number(row.size_mb ?? 0).toFixed(2)}`);
+    }
+
+    await pgPool.end();
+    return;
+  }
+
   const database = process.env.DB_NAME ?? "caf";
   const ssl = getSslConfig();
   const pool = mysql.createPool({

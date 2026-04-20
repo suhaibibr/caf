@@ -12,45 +12,35 @@ export function NavBar({ tone = "light" }: NavBarProps) {
     <header
       className="absolute inset-x-0 top-0 z-50 border-b border-[color:var(--page-line)] bg-[var(--page-surface)] backdrop-blur-xl"
     >
-      <nav className="mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between px-12 sm:px-16">
+      <nav className="mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-2 px-4 sm:px-8 md:px-12">
         <Link
           href="/"
-          className="text-[12px] font-bold uppercase tracking-[0.18em] text-[var(--page-fg)]"
+          className="whitespace-nowrap text-[16px] font-bold tracking-[0] text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
           aria-label="العودة للرئيسية"
         >
           كــاف
         </Link>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="flex items-center gap-3 sm:gap-5 md:gap-8">
           <Link
-            className="text-[12px] font-bold uppercase tracking-[0.18em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)]"
+            className="text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
             href="/roasters"
           >
             المحامص
           </Link>
           <Link
-            className="text-[12px] font-bold uppercase tracking-[0.18em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)]"
+            className="text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
             href="/#recipes"
           >
             الوصفات
           </Link>
-          <span
-            className="text-[12px] font-bold uppercase tracking-[0.18em] text-[var(--page-muted)]"
-          >
-            المجتمع
-          </span>
-          <span
-            className="text-[12px] font-bold uppercase tracking-[0.18em] text-[var(--page-muted)]"
-          >
-            عن المشروع
-          </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle tone={tone} />
           <Link
             href="/roasters"
-            className="text-[12px] font-bold uppercase tracking-[0.18em] text-[var(--page-fg)] transition hover:text-[var(--page-muted)]"
+            className="hidden text-[12px] font-bold tracking-[0.18em] text-[var(--page-fg)] transition hover:text-[var(--page-muted)] sm:inline-flex"
           >
             ابدأ
           </Link>

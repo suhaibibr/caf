@@ -115,40 +115,41 @@ async function ensureRecipeSubmissionsTable() {
   const pool = getDbPool();
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS recipe_submissions (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      id BIGSERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       author_name VARCHAR(255) NOT NULL,
-      grams DECIMAL(8,2) NOT NULL,
+      grams NUMERIC(8,2) NOT NULL,
       ice_grams INT NULL,
       pour_count INT NULL,
-      first_pour_temperature DECIMAL(6,2) NULL,
-      pour_profile_json LONGTEXT NULL,
+      first_pour_temperature NUMERIC(6,2) NULL,
+      pour_profile_json TEXT NULL,
       brewer VARCHAR(255) NOT NULL,
       ratio_input VARCHAR(128) NOT NULL,
       roaster_slug VARCHAR(191) NULL,
       roaster_name VARCHAR(255) NULL,
-      brew_type ENUM('hot', 'cold') NOT NULL,
+      brew_type VARCHAR(16) NOT NULL CHECK (brew_type IN ('hot', 'cold')),
       xbloom_url TEXT NOT NULL,
       submitter_ip VARCHAR(64) NOT NULL,
-      status ENUM('pending', 'approved', 'reviewed', 'rejected') NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      reviewed_at DATETIME NULL,
-      reviewed_by BIGINT UNSIGNED NULL,
-      INDEX idx_recipe_submissions_status (status),
-      INDEX idx_recipe_submissions_created_at (created_at)
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'reviewed', 'rejected')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at TIMESTAMPTZ NULL,
+      reviewed_by BIGINT NULL
+    )
   `);
-
-  await pool.execute(`
-    ALTER TABLE recipe_submissions
-    MODIFY COLUMN status ENUM('pending', 'approved', 'reviewed', 'rejected')
-    NOT NULL DEFAULT 'pending'
-  `);
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_recipe_submissions_status ON recipe_submissions (status)",
+  );
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_recipe_submissions_created_at ON recipe_submissions (created_at)",
+  );
 }
 
 export async function ensureRecipeSubmissionsReady() {
   if (!setupPromise) {
-    setupPromise = ensureRecipeSubmissionsTable();
+    setupPromise = ensureRecipeSubmissionsTable().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
   }
   await setupPromise;
 }
@@ -156,7 +157,7 @@ export async function ensureRecipeSubmissionsReady() {
 export async function createRecipeSubmission(input: RecipeSubmissionInput) {
   await ensureRecipeSubmissionsReady();
   const pool = getDbPool();
-  const [result] = await pool.execute<ResultSetHeader>(
+  const [rows] = await pool.execute<Array<{ id: number | string }>>(
     `
       INSERT INTO recipe_submissions (
         name,
@@ -174,6 +175,7 @@ export async function createRecipeSubmission(input: RecipeSubmissionInput) {
         xbloom_url,
         submitter_ip
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id
     `,
     [
       input.name,
@@ -192,7 +194,7 @@ export async function createRecipeSubmission(input: RecipeSubmissionInput) {
       input.submitterIp,
     ],
   );
-  return Number(result.insertId);
+  return Number(rows[0]?.id ?? 0);
 }
 
 export async function listRecipeSubmissions(status: RecipeSubmissionStatus = "pending") {
@@ -316,4 +318,3 @@ export async function deleteRecipeSubmissions(ids: number[]) {
   );
   return Number(result.affectedRows ?? 0);
 }
-

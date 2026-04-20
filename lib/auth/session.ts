@@ -484,7 +484,9 @@ export async function tryAuthenticateAdminLogin(input: {
     userAgent: input.userAgent,
     details: { rememberMe: input.rememberMe },
   });
-  void cleanupExpiredAuthSessions();
+  void cleanupExpiredAuthSessions().catch(() => {
+    // Cleanup is best-effort and should not break successful login.
+  });
 
   return {
     ok: true,

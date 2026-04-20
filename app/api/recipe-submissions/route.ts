@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2";
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import { getClientIp, isTrustedOrigin } from "@/lib/auth/request";
+import { isRecoverableDbError } from "@/lib/db-errors";
 import { createRecipeSubmission, ensureRecipeSubmissionsReady } from "@/lib/recipe-submissions-db";
 import { listRoasters } from "@/lib/roasters-db";
 import { listManagedRecipes, saveManagedRecipe } from "@/lib/recipes-db";
@@ -102,7 +103,7 @@ async function isIpRateLimited(ipAddress: string) {
       SELECT COUNT(*) AS count
       FROM recipe_submissions
       WHERE submitter_ip = ?
-        AND created_at >= (NOW() - INTERVAL 10 MINUTE)
+        AND created_at >= (NOW() - INTERVAL '10 minutes')
     `,
     [ipAddress],
   );
@@ -118,11 +119,21 @@ export async function POST(request: Request) {
   }
 
   const ipAddress = getClientIp(request);
-  if (await isIpRateLimited(ipAddress)) {
-    return NextResponse.json(
-      { message: "تم تجاوز الحد المسموح للإرسال. حاول لاحقًا." },
-      { status: 429 },
-    );
+  try {
+    if (await isIpRateLimited(ipAddress)) {
+      return NextResponse.json(
+        { message: "تم تجاوز الحد المسموح للإرسال. حاول لاحقًا." },
+        { status: 429 },
+      );
+    }
+  } catch (error) {
+    if (isRecoverableDbError(error)) {
+      return NextResponse.json(
+        { message: "تعذر الاتصال بقاعدة البيانات حالياً. حاول مرة أخرى." },
+        { status: 503 },
+      );
+    }
+    throw error;
   }
 
   let body: SubmissionBody;
@@ -296,6 +307,13 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (isRecoverableDbError(error)) {
+      return NextResponse.json(
+        { message: "تعذر الاتصال بقاعدة البيانات حالياً. حاول مرة أخرى." },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(
       {
         message:

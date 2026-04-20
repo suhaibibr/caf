@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import mysql from "mysql2/promise";
+import { Pool as PgPool } from "pg";
 
 function loadEnvFiles() {
   const envFiles = [".env", ".env.local"];
@@ -32,76 +32,34 @@ function loadEnvFiles() {
   }
 }
 
-function isSslEnabled() {
-  const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
-  return mode !== "" && mode !== "DISABLED" && mode !== "OFF" && mode !== "NONE";
-}
-
-function shouldRejectUnauthorizedByDefault() {
-  const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
-  return mode === "VERIFY_CA" || mode === "VERIFY_IDENTITY";
-}
-
-function parseBooleanEnv(value) {
-  if (!value) {
-    return undefined;
-  }
-  const normalized = value.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "false", "no", "off"].includes(normalized)) {
-    return false;
-  }
-  return undefined;
-}
-
-function getSslConfig() {
-  if (!isSslEnabled()) {
-    return undefined;
-  }
-
-  const explicitRejectUnauthorized = parseBooleanEnv(
-    process.env.DB_SSL_REJECT_UNAUTHORIZED,
-  );
-  const rejectUnauthorized =
-    explicitRejectUnauthorized ?? shouldRejectUnauthorizedByDefault();
-  const ca = process.env.DB_SSL_CA?.replace(/\\n/g, "\n");
-
-  return {
-    rejectUnauthorized,
-    ...(ca ? { ca } : {}),
-    minVersion: "TLSv1.2",
-  };
-}
-
 async function main() {
   loadEnvFiles();
-  const ssl = getSslConfig();
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST ?? "127.0.0.1",
-    port: Number(process.env.DB_PORT ?? 3306),
-    user: process.env.DB_USER ?? "root",
-    password: process.env.DB_PASSWORD ?? "",
-    database: process.env.DB_NAME ?? "caf",
-    waitForConnections: true,
-    connectionLimit: 2,
-    queueLimit: 0,
-    charset: "utf8mb4",
-    ...(ssl ? { ssl } : {}),
+  const connectionString =
+    process.env.DATABASE_URL_UNPOOLED?.trim() ||
+    process.env.DATABASE_URL?.trim() ||
+    "";
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is missing. Configure Neon first.");
+  }
+
+  const pool = new PgPool({
+    connectionString,
+    max: 1,
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 20_000,
   });
 
-  await pool.execute(
+  await pool.query(
     "UPDATE auth_users SET failed_login_attempts = 0, locked_until = NULL",
   );
-  await pool.execute(
-    "DELETE FROM auth_login_attempts WHERE created_at >= (NOW() - INTERVAL 1 DAY)",
+  await pool.query(
+    "DELETE FROM auth_login_attempts WHERE created_at >= (NOW() - INTERVAL '1 day')",
   );
 
-  const [rows] = await pool.query(
+  const result = await pool.query(
     "SELECT COUNT(*) AS count FROM auth_login_attempts",
   );
-  const remaining = Number(rows[0]?.count ?? 0);
+  const remaining = Number(result.rows[0]?.count ?? 0);
   console.log(`Auth locks reset done. Remaining attempts rows: ${remaining}`);
   await pool.end();
 }

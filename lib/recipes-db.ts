@@ -149,40 +149,14 @@ function mapRecipeRow(row: ManagedRecipeRow): ManagedRecipe {
 
 async function ensureColumnExists(columnName: string, sql: string) {
   const pool = getDbPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `
-      SELECT COLUMN_NAME
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = 'recipes'
-        AND column_name = ?
-      LIMIT 1
-    `,
-    [columnName],
-  );
-
-  if (!rows[0]) {
-    await pool.execute(sql);
-  }
+  void columnName;
+  await pool.execute(sql);
 }
 
 async function ensureIndexExists(indexName: string, sql: string) {
   const pool = getDbPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `
-      SELECT INDEX_NAME
-      FROM information_schema.statistics
-      WHERE table_schema = DATABASE()
-        AND table_name = 'recipes'
-        AND index_name = ?
-      LIMIT 1
-    `,
-    [indexName],
-  );
-
-  if (!rows[0]) {
-    await pool.execute(sql);
-  }
+  void indexName;
+  await pool.execute(sql);
 }
 
 async function ensureRecipesTable() {
@@ -193,57 +167,59 @@ async function ensureRecipesTable() {
       slug VARCHAR(191) NOT NULL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       author_name VARCHAR(255) NOT NULL,
-      is_roaster_approved TINYINT(1) NOT NULL DEFAULT 0,
+      is_roaster_approved SMALLINT NOT NULL DEFAULT 0,
       brewer VARCHAR(255) NOT NULL,
-      grams DECIMAL(8,2) NOT NULL,
+      grams NUMERIC(8,2) NOT NULL,
       ice_grams INT NULL,
       pour_count INT NULL,
-      first_pour_temperature DECIMAL(6,2) NULL,
-      pour_profile_json LONGTEXT NULL,
+      first_pour_temperature NUMERIC(6,2) NULL,
+      pour_profile_json TEXT NULL,
       ratio_text VARCHAR(64) NOT NULL,
       water_ml INT NULL,
       roaster_slug VARCHAR(191) NULL,
       roaster_name VARCHAR(255) NULL,
       merge_group_key VARCHAR(191) NULL,
-      brew_type ENUM('hot', 'cold', 'filter') NOT NULL,
+      brew_type VARCHAR(16) NOT NULL CHECK (brew_type IN ('hot', 'cold', 'filter')),
       xbloom_url TEXT NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_recipes_roaster_slug (roaster_slug)
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
+  await pool.execute(
+    "CREATE INDEX IF NOT EXISTS idx_recipes_roaster_slug ON recipes (roaster_slug)",
+  );
 
   await ensureColumnExists(
     "is_roaster_approved",
-    "ALTER TABLE recipes ADD COLUMN is_roaster_approved TINYINT(1) NOT NULL DEFAULT 0 AFTER author_name",
+    "ALTER TABLE recipes ADD COLUMN IF NOT EXISTS is_roaster_approved SMALLINT NOT NULL DEFAULT 0",
   );
   await ensureColumnExists(
     "ice_grams",
-    "ALTER TABLE recipes ADD COLUMN ice_grams INT NULL AFTER grams",
+    "ALTER TABLE recipes ADD COLUMN IF NOT EXISTS ice_grams INT NULL",
   );
   await ensureColumnExists(
     "pour_count",
-    "ALTER TABLE recipes ADD COLUMN pour_count INT NULL AFTER ice_grams",
+    "ALTER TABLE recipes ADD COLUMN IF NOT EXISTS pour_count INT NULL",
   );
   await ensureColumnExists(
     "first_pour_temperature",
-    "ALTER TABLE recipes ADD COLUMN first_pour_temperature DECIMAL(6,2) NULL AFTER pour_count",
+    "ALTER TABLE recipes ADD COLUMN IF NOT EXISTS first_pour_temperature NUMERIC(6,2) NULL",
   );
   await ensureColumnExists(
     "pour_profile_json",
-    "ALTER TABLE recipes ADD COLUMN pour_profile_json LONGTEXT NULL AFTER first_pour_temperature",
+    "ALTER TABLE recipes ADD COLUMN IF NOT EXISTS pour_profile_json TEXT NULL",
   );
   await ensureColumnExists(
     "merge_group_key",
-    "ALTER TABLE recipes ADD COLUMN merge_group_key VARCHAR(191) NULL AFTER roaster_name",
+    "ALTER TABLE recipes ADD COLUMN IF NOT EXISTS merge_group_key VARCHAR(191) NULL",
   );
   await ensureIndexExists(
     "idx_recipes_updated_created",
-    "ALTER TABLE recipes ADD INDEX idx_recipes_updated_created (updated_at, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_recipes_updated_created ON recipes (updated_at, created_at)",
   );
   await ensureIndexExists(
     "idx_recipes_created_at",
-    "ALTER TABLE recipes ADD INDEX idx_recipes_created_at (created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_recipes_created_at ON recipes (created_at)",
   );
 
   const [slugRows] = await pool.query<RecipeSlugRow[]>(
@@ -285,7 +261,10 @@ async function ensureRecipesTable() {
 
 export async function ensureRecipesReady() {
   if (!setupPromise) {
-    setupPromise = ensureRecipesTable();
+    setupPromise = ensureRecipesTable().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
   }
 
   await setupPromise;
@@ -360,30 +339,16 @@ export async function listManagedRecipesRandom(limit = 8) {
     await ensureRecipesReady();
     const pool = getDbPool();
     const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
-    const sampleSize = Math.max(safeLimit * 4, 24);
     const [rows] = await pool.query<ManagedRecipeRow[]>(
       `
         SELECT *
         FROM recipes
-        ORDER BY updated_at DESC, created_at DESC
+        ORDER BY RANDOM()
         LIMIT ?
       `,
-      [sampleSize],
+      [safeLimit],
     );
-
-    if (rows.length <= safeLimit) {
-      return rows.map(mapRecipeRow);
-    }
-
-    const shuffled = [...rows];
-    for (let index = shuffled.length - 1; index > 0; index -= 1) {
-      const randomIndex = Math.floor(Math.random() * (index + 1));
-      const current = shuffled[index];
-      shuffled[index] = shuffled[randomIndex];
-      shuffled[randomIndex] = current;
-    }
-
-    return shuffled.slice(0, safeLimit).map(mapRecipeRow);
+    return rows.map(mapRecipeRow);
   } catch (error) {
     if (!isRecoverableDbError(error)) {
       throw error;
@@ -465,23 +430,25 @@ export async function saveManagedRecipe(input: ManagedRecipeInput) {
         brew_type,
         xbloom_url
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        author_name = VALUES(author_name),
-        is_roaster_approved = VALUES(is_roaster_approved),
-        brewer = VALUES(brewer),
-        grams = VALUES(grams),
-        ice_grams = VALUES(ice_grams),
-        pour_count = VALUES(pour_count),
-        first_pour_temperature = VALUES(first_pour_temperature),
-        pour_profile_json = VALUES(pour_profile_json),
-        ratio_text = VALUES(ratio_text),
-        water_ml = VALUES(water_ml),
-        roaster_slug = VALUES(roaster_slug),
-        roaster_name = VALUES(roaster_name),
-        merge_group_key = VALUES(merge_group_key),
-        brew_type = VALUES(brew_type),
-        xbloom_url = VALUES(xbloom_url)
+      ON CONFLICT (slug) DO UPDATE
+      SET
+        name = EXCLUDED.name,
+        author_name = EXCLUDED.author_name,
+        is_roaster_approved = EXCLUDED.is_roaster_approved,
+        brewer = EXCLUDED.brewer,
+        grams = EXCLUDED.grams,
+        ice_grams = EXCLUDED.ice_grams,
+        pour_count = EXCLUDED.pour_count,
+        first_pour_temperature = EXCLUDED.first_pour_temperature,
+        pour_profile_json = EXCLUDED.pour_profile_json,
+        ratio_text = EXCLUDED.ratio_text,
+        water_ml = EXCLUDED.water_ml,
+        roaster_slug = EXCLUDED.roaster_slug,
+        roaster_name = EXCLUDED.roaster_name,
+        merge_group_key = EXCLUDED.merge_group_key,
+        brew_type = EXCLUDED.brew_type,
+        xbloom_url = EXCLUDED.xbloom_url,
+        updated_at = CURRENT_TIMESTAMP
     `,
     [
       input.slug,

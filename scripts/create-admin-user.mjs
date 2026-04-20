@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import mysql from "mysql2/promise";
+import { Pool as PgPool } from "pg";
 
 const scrypt = promisify(crypto.scrypt);
 const KEY_LENGTH = 64;
@@ -38,49 +38,6 @@ function loadEnvFiles() {
       process.env[key] = value;
     }
   }
-}
-
-function isSslEnabled() {
-  const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
-  return mode !== "" && mode !== "DISABLED" && mode !== "OFF" && mode !== "NONE";
-}
-
-function shouldRejectUnauthorizedByDefault() {
-  const mode = (process.env.DB_SSL_MODE ?? "").trim().toUpperCase();
-  return mode === "VERIFY_CA" || mode === "VERIFY_IDENTITY";
-}
-
-function parseBooleanEnv(value) {
-  if (!value) {
-    return undefined;
-  }
-  const normalized = value.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "false", "no", "off"].includes(normalized)) {
-    return false;
-  }
-  return undefined;
-}
-
-function getSslConfig() {
-  if (!isSslEnabled()) {
-    return undefined;
-  }
-
-  const explicitRejectUnauthorized = parseBooleanEnv(
-    process.env.DB_SSL_REJECT_UNAUTHORIZED,
-  );
-  const rejectUnauthorized =
-    explicitRejectUnauthorized ?? shouldRejectUnauthorizedByDefault();
-  const ca = process.env.DB_SSL_CA?.replace(/\\n/g, "\n");
-
-  return {
-    rejectUnauthorized,
-    ...(ca ? { ca } : {}),
-    minVersion: "TLSv1.2",
-  };
 }
 
 function getArg(name) {
@@ -132,71 +89,47 @@ async function main() {
     process.exit(1);
   }
 
-  const ssl = getSslConfig();
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST ?? "127.0.0.1",
-    port: Number(process.env.DB_PORT ?? 3306),
-    user: process.env.DB_USER ?? "root",
-    password: process.env.DB_PASSWORD ?? "",
-    database: process.env.DB_NAME ?? "caf",
-    waitForConnections: true,
-    connectionLimit: 2,
-    queueLimit: 0,
-    charset: "utf8mb4",
-    ...(ssl ? { ssl } : {}),
+  const connectionString =
+    process.env.DATABASE_URL_UNPOOLED?.trim() ||
+    process.env.DATABASE_URL?.trim() ||
+    "";
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is missing. Configure Neon first.");
+  }
+
+  const pool = new PgPool({
+    connectionString,
+    max: 1,
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 20_000,
   });
 
-  await pool.execute(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS auth_users (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      id BIGSERIAL PRIMARY KEY,
       email VARCHAR(191) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
-      role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      is_super_admin TINYINT(1) NOT NULL DEFAULT 0,
-      must_change_password TINYINT(1) NOT NULL DEFAULT 0,
-      failed_login_attempts INT UNSIGNED NOT NULL DEFAULT 0,
-      locked_until DATETIME NULL,
-      last_login_at DATETIME NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      role VARCHAR(16) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+      is_active SMALLINT NOT NULL DEFAULT 1,
+      is_super_admin SMALLINT NOT NULL DEFAULT 0,
+      must_change_password SMALLINT NOT NULL DEFAULT 0,
+      failed_login_attempts INT NOT NULL DEFAULT 0,
+      locked_until TIMESTAMPTZ NULL,
+      last_login_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
-  const [superAdminColumnRows] = await pool.execute(
-    `
-      SELECT COLUMN_NAME
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = 'auth_users'
-        AND column_name = 'is_super_admin'
-      LIMIT 1
-    `,
+  await pool.query(
+    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS is_super_admin SMALLINT NOT NULL DEFAULT 0",
   );
-  if (!superAdminColumnRows[0]) {
-    await pool.execute(
-      "ALTER TABLE auth_users ADD COLUMN is_super_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active",
-    );
-  }
-
-  const [mustChangePasswordRows] = await pool.execute(
-    `
-      SELECT COLUMN_NAME
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = 'auth_users'
-        AND column_name = 'must_change_password'
-      LIMIT 1
-    `,
+  await pool.query(
+    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS must_change_password SMALLINT NOT NULL DEFAULT 0",
   );
-  if (!mustChangePasswordRows[0]) {
-    await pool.execute(
-      "ALTER TABLE auth_users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER is_super_admin",
-    );
-  }
 
   const passwordHash = await hashPassword(password);
-  await pool.execute(
+  await pool.query(
     `
       INSERT INTO auth_users (
         email,
@@ -206,15 +139,17 @@ async function main() {
         is_super_admin,
         must_change_password
       )
-      VALUES (?, ?, ?, 1, ?, 0)
-      ON DUPLICATE KEY UPDATE
-        password_hash = VALUES(password_hash),
-        role = VALUES(role),
+      VALUES ($1, $2, $3, 1, $4, 0)
+      ON CONFLICT (email) DO UPDATE
+      SET
+        password_hash = EXCLUDED.password_hash,
+        role = EXCLUDED.role,
         is_active = 1,
-        is_super_admin = VALUES(is_super_admin),
+        is_super_admin = EXCLUDED.is_super_admin,
         must_change_password = 0,
         failed_login_attempts = 0,
-        locked_until = NULL
+        locked_until = NULL,
+        updated_at = CURRENT_TIMESTAMP
     `,
     [email, passwordHash, role, isSuperAdmin ? 1 : 0],
   );

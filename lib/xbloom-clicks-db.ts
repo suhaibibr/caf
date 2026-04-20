@@ -16,21 +16,8 @@ let setupPromise: Promise<void> | null = null;
 
 async function ensureIndexExists(indexName: string, sql: string) {
   const pool = getDbPool();
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `
-      SELECT INDEX_NAME
-      FROM information_schema.statistics
-      WHERE table_schema = DATABASE()
-        AND table_name = 'xbloom_recipe_clicks'
-        AND index_name = ?
-      LIMIT 1
-    `,
-    [indexName],
-  );
-
-  if (!rows[0]) {
-    await pool.execute(sql);
-  }
+  void indexName;
+  await pool.execute(sql);
 }
 
 async function ensureXbloomClicksTable() {
@@ -39,20 +26,23 @@ async function ensureXbloomClicksTable() {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS xbloom_recipe_clicks (
       recipe_slug VARCHAR(191) NOT NULL PRIMARY KEY,
-      click_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      click_count BIGINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
   await ensureIndexExists(
     "idx_xbloom_clicks_rank",
-    "ALTER TABLE xbloom_recipe_clicks ADD INDEX idx_xbloom_clicks_rank (click_count, updated_at)",
+    "CREATE INDEX IF NOT EXISTS idx_xbloom_clicks_rank ON xbloom_recipe_clicks (click_count, updated_at)",
   );
 }
 
 export async function ensureXbloomClicksReady() {
   if (!setupPromise) {
-    setupPromise = ensureXbloomClicksTable();
+    setupPromise = ensureXbloomClicksTable().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
   }
 
   await setupPromise;
@@ -71,8 +61,10 @@ export async function trackXbloomRecipeClick(recipeSlug: string) {
       `
         INSERT INTO xbloom_recipe_clicks (recipe_slug, click_count)
         VALUES (?, 1)
-        ON DUPLICATE KEY UPDATE
-          click_count = click_count + 1
+        ON CONFLICT (recipe_slug) DO UPDATE
+        SET
+          click_count = xbloom_recipe_clicks.click_count + 1,
+          updated_at = CURRENT_TIMESTAMP
       `,
       [normalized],
     );
