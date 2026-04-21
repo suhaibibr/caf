@@ -73,9 +73,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           ADMIN AUTH
         </p>
         <h1 className="mt-3 text-3xl font-bold">تسجيل دخول الإدارة</h1>
-        <p className="mt-3 text-sm font-bold text-white/55">
-          الوصول لهذه المنطقة متاح فقط للمستخدمين بصلاحية مشرف.
-        </p>
         <AdminLoginForm nextPath={nextPath} />
       </section>
     </main>

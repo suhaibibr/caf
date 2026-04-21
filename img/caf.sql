@@ -100,6 +100,7 @@ INSERT INTO `auth_sessions` (`session_id`, `user_id`, `remember_me`, `ip_address
 
 CREATE TABLE `auth_users` (
   `id` bigint(20) UNSIGNED NOT NULL,
+  `full_name` varchar(120) NOT NULL DEFAULT '',
   `email` varchar(191) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `role` enum('admin','user') NOT NULL DEFAULT 'user',
@@ -117,8 +118,8 @@ CREATE TABLE `auth_users` (
 -- Dumping data for table `auth_users`
 --
 
-INSERT INTO `auth_users` (`id`, `email`, `password_hash`, `role`, `is_active`, `is_super_admin`, `must_change_password`, `failed_login_attempts`, `locked_until`, `last_login_at`, `created_at`, `updated_at`) VALUES
-(1, '3yn@caf.com', 'scrypt$16384$8$1$t31eOpd-WIpKTEhsztR-DA$sO7scZOUwm5l2RWQM0r5D5khjuHrMA4Za88VWh3-wu47Yjfv49Rx9cp1hS2vGTAMgNXSXIesZ5jrTRN6S6TENg', 'admin', 1, 1, 0, 0, NULL, '2026-04-19 16:09:26', '2026-04-19 13:07:50', '2026-04-19 13:30:47');
+INSERT INTO `auth_users` (`id`, `full_name`, `email`, `password_hash`, `role`, `is_active`, `is_super_admin`, `must_change_password`, `failed_login_attempts`, `locked_until`, `last_login_at`, `created_at`, `updated_at`) VALUES
+(1, '3yn', '3yn@caf.com', 'scrypt$16384$8$1$t31eOpd-WIpKTEhsztR-DA$sO7scZOUwm5l2RWQM0r5D5khjuHrMA4Za88VWh3-wu47Yjfv49Rx9cp1hS2vGTAMgNXSXIesZ5jrTRN6S6TENg', 'admin', 1, 1, 0, 0, NULL, '2026-04-19 16:09:26', '2026-04-19 13:07:50', '2026-04-19 13:30:47');
 
 -- --------------------------------------------------------
 

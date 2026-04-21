@@ -10,6 +10,7 @@ import {
 
 export type AuthUserRecord = {
   id: number;
+  fullName: string | null;
   email: string;
   role: AuthRole;
   isActive: boolean;
@@ -39,6 +40,7 @@ export type AuthSessionWithUser = {
 
 type AuthUserRow = RowDataPacket & {
   id: number;
+  full_name: string | null;
   email: string;
   role: AuthRole;
   is_active: number;
@@ -72,6 +74,7 @@ type CountRow = RowDataPacket & {
 
 type AdminUserListRow = RowDataPacket & {
   id: number;
+  full_name: string | null;
   email: string;
   role: AuthRole;
   is_active: number;
@@ -89,8 +92,10 @@ type LoginAttemptCountRow = RowDataPacket & {
 let setupPromise: Promise<void> | null = null;
 
 function mapUserRow(row: AuthUserRow): AuthUserRecord {
+  const normalizedFullName = typeof row.full_name === "string" ? row.full_name.trim() : "";
   return {
     id: Number(row.id),
+    fullName: normalizedFullName || null,
     email: row.email,
     role: row.role,
     isActive: Boolean(row.is_active),
@@ -128,6 +133,7 @@ async function ensureAuthTables() {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS auth_users (
       id BIGSERIAL PRIMARY KEY,
+      full_name VARCHAR(120) NOT NULL DEFAULT '',
       email VARCHAR(191) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
       role VARCHAR(16) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
@@ -142,6 +148,10 @@ async function ensureAuthTables() {
     )
   `);
 
+  await ensureAuthUsersColumn(
+    "full_name",
+    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS full_name VARCHAR(120) NOT NULL DEFAULT ''",
+  );
   await ensureAuthUsersColumn(
     "is_super_admin",
     "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS is_super_admin SMALLINT NOT NULL DEFAULT 0",
@@ -307,6 +317,7 @@ export async function getAuthUserById(id: number) {
 }
 
 export async function upsertAuthUser(input: {
+  fullName?: string | null;
   email: string;
   passwordHash: string;
   role: AuthRole;
@@ -316,9 +327,11 @@ export async function upsertAuthUser(input: {
 }) {
   await ensureAuthReady();
   const pool = getDbPool();
+  const fullName = (input.fullName ?? "").trim().slice(0, 120);
   await pool.execute<ResultSetHeader>(
     `
       INSERT INTO auth_users (
+        full_name,
         email,
         password_hash,
         role,
@@ -326,9 +339,10 @@ export async function upsertAuthUser(input: {
         is_super_admin,
         must_change_password
       )
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (email) DO UPDATE
       SET
+        full_name = EXCLUDED.full_name,
         password_hash = EXCLUDED.password_hash,
         role = EXCLUDED.role,
         is_active = EXCLUDED.is_active,
@@ -337,6 +351,7 @@ export async function upsertAuthUser(input: {
         updated_at = CURRENT_TIMESTAMP
     `,
     [
+      fullName,
       input.email,
       input.passwordHash,
       input.role,
@@ -372,6 +387,7 @@ export async function listAdminUsers() {
     `
       SELECT
         id,
+        full_name,
         email,
         role,
         is_active,
@@ -387,6 +403,9 @@ export async function listAdminUsers() {
 
   return rows.map((row) => ({
     id: Number(row.id),
+    fullName: typeof row.full_name === "string" && row.full_name.trim()
+      ? row.full_name.trim()
+      : null,
     email: row.email,
     role: row.role,
     isActive: Boolean(row.is_active),
@@ -570,6 +589,7 @@ export async function getAuthSessionWithUser(sessionId: string) {
         s.remember_me,
         s.last_seen_at,
         u.id AS auth_user_id,
+        u.full_name,
         u.email,
         u.role,
         u.is_active,

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 type AdminAccountItem = {
   id: number;
+  fullName: string | null;
   email: string;
   role: string;
   isActive: boolean;
@@ -39,6 +40,7 @@ async function readJsonSafely<T>(response: Response) {
 
 export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAccountsStudioProps) {
   const [admins, setAdmins] = useState(initialAdmins);
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
@@ -53,7 +55,12 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
   const handleCreate = async () => {
     setStatusMessage("");
     setGeneratedPassword("");
+    const normalizedName = fullName.trim();
     const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName) {
+      setStatusMessage("أدخل اسم الإداري أولًا.");
+      return;
+    }
     if (!normalizedEmail) {
       setStatusMessage("أدخل البريد الإلكتروني أولًا.");
       return;
@@ -66,7 +73,7 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({ fullName: normalizedName, email: normalizedEmail }),
       });
       const payload = (await readJsonSafely<ApiPayload>(response)) ?? {};
       if (!response.ok) {
@@ -78,6 +85,7 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
       }
       setGeneratedPassword(payload.generatedPassword || "");
       setStatusMessage(payload.message || "تم إنشاء الحساب.");
+      setFullName("");
       setEmail("");
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "حدث خطأ أثناء الإنشاء.");
@@ -118,6 +126,18 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
         <h2 className="mt-1 text-2xl font-bold">إضافة حساب إداري</h2>
 
         <div className="mt-5 grid gap-4">
+          <label className="block">
+            <span className="text-sm font-bold text-black/55 dark:text-[#EAEAEA]/55">
+              اسم الإداري
+            </span>
+            <input
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              placeholder="الاسم الكامل"
+              className="mt-2 h-12 w-full rounded-[16px] border border-black/8 bg-[#F8F8F5] px-4 text-sm font-bold outline-none transition focus:border-black/22 dark:border-white/10 dark:bg-[#101623] dark:focus:border-[#EAEAEA]/28"
+            />
+          </label>
+
           <label className="block">
             <span className="text-sm font-bold text-black/55 dark:text-[#EAEAEA]/55">
               البريد الإلكتروني
@@ -170,7 +190,10 @@ export function AdminAccountsStudio({ initialAdmins, currentAdminId }: AdminAcco
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-bold">{admin.email}</p>
+                  <p className="font-bold">{admin.fullName || admin.email.split("@")[0]}</p>
+                  <p className="mt-1 text-xs text-black/45 dark:text-[#EAEAEA]/45">
+                    {admin.email}
+                  </p>
                   <p className="mt-1 text-xs text-black/45 dark:text-[#EAEAEA]/45">
                     {admin.isSuperAdmin ? "صلاحية عليا" : "إداري عادي"}{" "}
                     {admin.mustChangePassword ? "· تغيير كلمة مرور إجباري" : ""}

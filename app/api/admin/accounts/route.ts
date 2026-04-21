@@ -7,8 +7,14 @@ import { getAuthUserByEmail, listAdminUsers, logAdminAudit, logSecurityEvent, up
 import { hashPassword } from "@/lib/auth/password";
 
 type CreateAdminBody = {
+  fullName?: string;
   email?: string;
 };
+const ADMIN_FULL_NAME_MAX_LENGTH = 80;
+
+function normalizeFullName(value: string) {
+  return value.trim();
+}
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -63,6 +69,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "بيانات الطلب غير صالحة." }, { status: 400 });
   }
 
+  const fullName = normalizeFullName(
+    typeof body.fullName === "string" ? body.fullName : "",
+  );
+  if (!fullName || fullName.length > ADMIN_FULL_NAME_MAX_LENGTH) {
+    return NextResponse.json({ message: "اسم الإداري غير صالح." }, { status: 400 });
+  }
+
   const email = normalizeEmail(typeof body.email === "string" ? body.email : "");
   if (!email || email.length > AUTH_MAX_EMAIL_LENGTH || !isValidEmail(email)) {
     return NextResponse.json({ message: "البريد الإلكتروني غير صالح." }, { status: 400 });
@@ -87,6 +100,7 @@ export async function POST(request: Request) {
   const passwordHash = await hashPassword(generatedPassword);
 
   await upsertAuthUser({
+    fullName,
     email,
     passwordHash,
     role: AUTH_ROLE_ADMIN,
@@ -107,6 +121,7 @@ export async function POST(request: Request) {
     ipAddress: auth.context.ipAddress,
     userAgent: auth.context.userAgent,
     details: {
+      fullName,
       email,
       mustChangePassword: true,
     },
@@ -118,6 +133,7 @@ export async function POST(request: Request) {
       admin: created
         ? {
             id: created.id,
+            fullName: created.fullName,
             email: created.email,
             role: created.role,
             isActive: created.isActive,

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdminUserMenu } from "@/components/AdminUserMenu";
 
 const sidebarItems = [
@@ -82,7 +81,7 @@ export function AdminShell({ activePath, children }: AdminShellProps) {
           <div className="px-3">
             <p className="text-[22px] font-bold tracking-[-0.01em]">كــاف</p>
             <p className="mt-1 text-xs font-bold text-black/38 dark:text-[#EAEAEA]/42">
-              استوديو المحتوى
+              لوحة التحكم
             </p>
           </div>
 
@@ -124,8 +123,8 @@ export function AdminShell({ activePath, children }: AdminShellProps) {
 
       <div className="min-w-0 lg:pr-[240px]">
         <header className="sticky top-0 z-20 border-b border-black/8 bg-[#F6F6F3]/78 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-[#0B0F1A]/78 sm:px-8">
-          <div className="mx-auto flex max-w-7xl items-center gap-4">
-            <div className="flex h-11 flex-1 items-center gap-3 rounded-[18px] border border-black/8 bg-white/70 px-4 text-black/35 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#EAEAEA]/45">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex h-11 w-full items-center gap-3 rounded-[18px] border border-black/8 bg-white/70 px-4 text-black/35 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#EAEAEA]/45 sm:flex-1">
               <SearchIcon />
               <input
                 aria-label="بحث في لوحة الإدارة"
@@ -133,9 +132,29 @@ export function AdminShell({ activePath, children }: AdminShellProps) {
                 className="h-full flex-1 bg-transparent text-sm font-bold text-black outline-none placeholder:text-black/35 dark:text-[#EAEAEA] dark:placeholder:text-[#EAEAEA]/35"
               />
             </div>
-            <ThemeToggle />
-            <AdminUserMenu />
+            <div className="flex w-full justify-end sm:w-auto">
+              <AdminUserMenu />
+            </div>
           </div>
+
+          <nav className="mx-auto mt-3 flex max-w-7xl gap-2 overflow-x-auto pb-1 lg:hidden">
+            {sidebarItems.map((item) => {
+              const isActive = item.href !== "#" && item.href === activePath;
+              return (
+                <Link
+                  key={`mobile-${item.label}`}
+                  href={item.href}
+                  className={`whitespace-nowrap rounded-[14px] border px-3 py-2 text-xs font-bold transition ${
+                    isActive
+                      ? "border-black bg-black text-white dark:border-[#EAEAEA] dark:bg-[#EAEAEA] dark:text-[#0B0F1A]"
+                      : "border-black/10 bg-white/72 text-black/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#EAEAEA]/60"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </header>
 
         {children}

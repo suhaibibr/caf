@@ -77,6 +77,7 @@ async function hashPassword(password) {
 async function main() {
   loadEnvFiles();
   const email = getArg("email").trim().toLowerCase();
+  const fullName = getArg("name").trim();
   const password = getArg("password");
   const roleInput = getArg("role").trim().toLowerCase();
   const role = roleInput === "user" ? "user" : "admin";
@@ -84,7 +85,7 @@ async function main() {
 
   if (!email || !password) {
     console.error(
-      "Usage: node scripts/create-admin-user.mjs --email admin@example.com --password \"StrongPass123!\" [--role admin|user] [--super 1]",
+      "Usage: node scripts/create-admin-user.mjs --email admin@example.com --password \"StrongPass123!\" [--name \"Admin Name\"] [--role admin|user] [--super 1]",
     );
     process.exit(1);
   }
@@ -107,6 +108,7 @@ async function main() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS auth_users (
       id BIGSERIAL PRIMARY KEY,
+      full_name VARCHAR(120) NOT NULL DEFAULT '',
       email VARCHAR(191) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
       role VARCHAR(16) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
@@ -122,6 +124,9 @@ async function main() {
   `);
 
   await pool.query(
+    "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS full_name VARCHAR(120) NOT NULL DEFAULT ''",
+  );
+  await pool.query(
     "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS is_super_admin SMALLINT NOT NULL DEFAULT 0",
   );
   await pool.query(
@@ -132,6 +137,7 @@ async function main() {
   await pool.query(
     `
       INSERT INTO auth_users (
+        full_name,
         email,
         password_hash,
         role,
@@ -139,9 +145,10 @@ async function main() {
         is_super_admin,
         must_change_password
       )
-      VALUES ($1, $2, $3, 1, $4, 0)
+      VALUES ($1, $2, $3, $4, 1, $5, 0)
       ON CONFLICT (email) DO UPDATE
       SET
+        full_name = EXCLUDED.full_name,
         password_hash = EXCLUDED.password_hash,
         role = EXCLUDED.role,
         is_active = 1,
@@ -151,7 +158,7 @@ async function main() {
         locked_until = NULL,
         updated_at = CURRENT_TIMESTAMP
     `,
-    [email, passwordHash, role, isSuperAdmin ? 1 : 0],
+    [fullName.slice(0, 120), email, passwordHash, role, isSuperAdmin ? 1 : 0],
   );
 
   await pool.end();

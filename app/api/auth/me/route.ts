@@ -13,6 +13,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     id: auth.context.user.id,
+    fullName: auth.context.user.fullName,
     email: auth.context.user.email,
     role: auth.context.user.role,
     isSuperAdmin: auth.context.user.isSuperAdmin,

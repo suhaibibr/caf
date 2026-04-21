@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   announceRoastersUpdated,
@@ -34,16 +34,14 @@ export function AdminRoastersStudio({
   const [roasters, setRoasters] = useState<Roaster[]>(initialRoasters);
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [uploadedImage, setUploadedImage] = useState("");
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [roasterPendingDelete, setRoasterPendingDelete] = useState<Roaster | null>(null);
   const [roastersPage, setRoastersPage] = useState(1);
   const [roasterSearchQuery, setRoasterSearchQuery] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const previewImage = uploadedImage || imageUrl.trim();
+  const previewImage = imageUrl.trim();
   const editingRoaster = useMemo(
     () => roasters.find((roaster) => roaster.slug === editingSlug),
     [editingSlug, roasters],
@@ -71,27 +69,12 @@ export function AdminRoastersStudio({
   const resetForm = () => {
     setName("");
     setImageUrl("");
-    setUploadedImage("");
     setEditingSlug(null);
-  };
-
-  const handleFile = (file: File | undefined) => {
-    if (!file) {
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      setUploadedImage(result);
-      setStatusMessage("تم تحميل الصورة بنجاح.");
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
     const trimmedName = name.trim();
-    const finalImage = uploadedImage || imageUrl.trim();
+    const finalImage = imageUrl.trim();
 
     if (!trimmedName || !finalImage) {
       setStatusMessage("أضف اسم المحمصة والصورة أولاً.");
@@ -164,8 +147,7 @@ export function AdminRoastersStudio({
   const startEditing = (roaster: Roaster) => {
     setEditingSlug(roaster.slug);
     setName(roaster.name);
-    setImageUrl(roaster.coverImage.startsWith("data:") ? "" : roaster.coverImage);
-    setUploadedImage(roaster.coverImage.startsWith("data:") ? roaster.coverImage : "");
+    setImageUrl(roaster.coverImage);
     setStatusMessage(`تعديل ${roaster.name}`);
   };
 
@@ -343,35 +325,6 @@ export function AdminRoastersStudio({
               className="mt-2 h-12 w-full rounded-[16px] border border-black/8 bg-[#F8F8F5] px-4 text-sm font-bold outline-none transition focus:border-black/22 dark:border-white/10 dark:bg-[#101623] dark:focus:border-[#EAEAEA]/28"
             />
           </label>
-
-          <div
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              handleFile(event.dataTransfer.files?.[0]);
-            }}
-            className="rounded-[20px] border border-dashed border-black/16 bg-[#F8F8F5] p-6 text-center dark:border-white/18 dark:bg-[#101623]"
-          >
-            <p className="font-bold">اسحب الصورة هنا</p>
-            <p className="mt-2 text-sm text-black/42 dark:text-[#EAEAEA]/42">
-              أو اختر صورة من جهازك.
-            </p>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSaving}
-              className="mt-4 rounded-[14px] border border-black/10 px-4 py-2 text-sm font-bold dark:border-white/12"
-            >
-              اختيار صورة
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleFile(event.target.files?.[0])}
-            />
-          </div>
 
           {previewImage && (
             <div className="relative h-40 overflow-hidden rounded-[18px] border border-black/8 dark:border-white/10">
