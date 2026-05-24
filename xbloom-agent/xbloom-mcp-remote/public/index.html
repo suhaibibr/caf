@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>xBloom Recipe Share Tool</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1117;
+        --panel: #161b22;
+        --text: #e6edf3;
+        --muted: #97a3b6;
+        --line: #2a3240;
+        --accent: #2f81f7;
+        --accent-2: #4b91f7;
+        --ok: #3fb950;
+        --err: #ff6b6b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: radial-gradient(circle at top right, #151b26, var(--bg));
+        color: var(--text);
+      }
+
+      .wrap {
+        width: min(900px, 92vw);
+        margin: 32px auto;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 10px 30px rgba(90, 70, 40, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 24px;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+
+      p {
+        margin: 0 0 10px;
+        color: var(--muted);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .row-4 {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      @media (max-width: 760px) {
+        .row,
+        .row-4 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      input,
+      textarea,
+      button {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        font-size: 14px;
+        background: #0d1117;
+        color: var(--text);
+      }
+
+      textarea {
+        min-height: 160px;
+        resize: vertical;
+        line-height: 1.6;
+      }
+
+      button {
+        cursor: pointer;
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      button:hover {
+        background: var(--accent-2);
+        border-color: var(--accent-2);
+      }
+
+      .secondary {
+        background: transparent;
+        color: var(--accent);
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 13px;
+      }
+
+      .status.ok {
+        color: var(--ok);
+      }
+
+      .status.err {
+        color: var(--err);
+      }
+
+      .result-link {
+        margin-top: 8px;
+        font-weight: 700;
+      }
+
+      .result-link a {
+        color: var(--accent);
+        word-break: break-all;
+      }
+
+      pre {
+        margin: 10px 0 0;
+        background: #0b0f14;
+        color: #dce6f2;
+        border-radius: 10px;
+        padding: 12px;
+        overflow: auto;
+        font-size: 12px;
+      }
+
+      .pour-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .pour-row button {
+        width: auto;
+        padding: 10px 14px;
+      }
+
+      .danger {
+        background: transparent;
+        border-color: #8b3434;
+        color: #ff8e8e;
+      }
+
+      .danger:hover {
+        background: #2a1717;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>xBloom Recipe to Share Link</h1>
+        <p>سجّل دخول مرة واحدة، وبعدها ألصق وصفة النص وسيتم إنشاء الوصفة وإرجاع رابط المشاركة.</p>
+      </div>
+
+      <div class="card">
+        <h2>1) تسجيل الدخول</h2>
+        <div class="row">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="xBloom password" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button id="loginBtn">Login</button>
+          <button id="clearSessionBtn" class="secondary" type="button">Clear Local Session</button>
+        </div>
+        <div id="loginStatus" class="status"></div>
+      </div>
+
+      <div class="card">
+        <h2>2) إنشاء وصفة يدويًا</h2>
+        <div class="row">
+          <div>
+            <label for="name">Recipe Name</label>
+            <input id="name" type="text" placeholder="Ethiopia V60" />
+          </div>
+          <div>
+            <label for="dose">Dose (g)</label>
+            <input id="dose" type="number" value="18" />
+          </div>
+        </div>
+
+        <div class="row-4" style="margin-top:10px;">
+          <div>
+            <label for="temp">Temp (C)</label>
+            <input id="temp" type="number" value="92" />
+          </div>
+          <div>
+            <label for="grind">Grind</label>
+            <input id="grind" type="number" value="70" />
+          </div>
+          <div>
+            <label for="rpm">RPM</label>
+            <input id="rpm" type="number" value="80" />
+          </div>
+          <div>
+            <label for="ratio">Ratio (optional)</label>
+            <input id="ratio" type="number" placeholder="15" />
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <label>الصبات ووقت الانتظار</label>
+          <div id="pourRows"></div>
+          <div class="row" style="margin-top:10px;">
+            <button id="addPourBtn" type="button">+ إضافة صبة جديدة</button>
+            <button id="resetPoursBtn" class="secondary" type="button">إعادة لـ 3 صبات</button>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          <button id="createBtn">Create Recipe + Get Share Link</button>
+        </div>
+
+        <div id="createStatus" class="status"></div>
+        <div id="resultLink" class="result-link"></div>
+        <pre id="resultJson"></pre>
+      </div>
+
+      <div class="card">
+        <h2>3) إدارة الوصفات الحالية</h2>
+        <p>اعرض الوصفات الموجودة ثم احذف أي وصفة بضغطة واحدة.</p>
+        <div class="row">
+          <button id="refreshRecipesBtn" type="button">Refresh Recipes</button>
+          <button id="clearRecipesViewBtn" class="secondary" type="button">Clear View</button>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="deleteRecipeId">Recipe ID للحذف</label>
+            <input id="deleteRecipeId" type="number" placeholder="12345" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="deleteRecipeBtn" type="button">Delete Recipe</button>
+          </div>
+        </div>
+        <div id="recipesStatus" class="status"></div>
+        <pre id="recipesJson"></pre>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

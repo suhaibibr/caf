@@ -33,10 +33,12 @@ function loadEnvFiles() {
 
 loadEnvFiles();
 
-const connectionString = process.env.DATABASE_URL?.trim();
+const connectionString =
+  process.env.NEON_DATABASE_URL?.trim() ||
+  process.env.DATABASE_URL?.trim();
 
 if (!connectionString) {
-  console.error("DATABASE_URL is missing. Add your Neon pooled connection string first.");
+  console.error("NEON_DATABASE_URL is missing. Add your Neon connection string first.");
   process.exit(1);
 }
 

@@ -37,6 +37,40 @@ The project now runs on Neon PostgreSQL by default on Vercel:
 
 `DATABASE_URL` is now mandatory at runtime. Hidden fallback to MySQL is disabled unless you explicitly set `ALLOW_MYSQL_FALLBACK=1`.
 
+## Neon To Supabase Migration
+
+This repo now includes an end-to-end migration script:
+
+- `scripts/migrate-neon-to-supabase.mjs`
+- `npm run db:migrate:neon-to-supabase`
+
+Required env vars for migration:
+
+- `NEON_DATABASE_URL` (or fallback `DATABASE_URL_UNPOOLED` / `DATABASE_URL`)
+- `SUPABASE_DATABASE_URL` (target database URL)
+
+What the script does:
+
+1. Exports Neon with `pg_dump` to `backups/neon-to-supabase-<timestamp>/`
+2. Creates schema in Supabase with `pg_restore --schema-only`
+3. Imports all data with `pg_restore --data-only`
+4. Verifies table row counts (source vs target)
+
+Useful commands:
+
+```bash
+npm run db:check:neon
+npm run db:check:supabase
+npm run db:migrate:neon-to-supabase
+```
+
+Optional flags:
+
+- `--skip-dump`
+- `--skip-restore`
+- `--skip-verify`
+- `--backup-dir <path>`
+
 ## Setup
 
 1. Install dependencies:

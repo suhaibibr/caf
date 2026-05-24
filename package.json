@@ -7,8 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:check:postgres": "node scripts/check-postgres-connection.mjs",
     "db:check:neon": "node scripts/check-neon-connection.mjs",
+    "db:check:supabase": "node scripts/check-postgres-connection.mjs --env SUPABASE_DATABASE_URL --label Supabase",
+    "db:check:prisma": "node scripts/check-prisma-setup.mjs",
     "db:migrate:mysql-to-neon": "node scripts/migrate-mysql-to-neon.mjs",
+    "db:migrate:neon-to-supabase": "node scripts/migrate-neon-to-supabase.mjs",
     "db:migrate:dump-to-neon": "node scripts/migrate-mysql-to-neon.mjs --source-sql-file img/caf.sql",
     "db:verify:mysql-neon-counts": "node scripts/verify-mysql-neon-counts.mjs",
     "db:verify:dump-neon-counts": "node scripts/verify-dump-neon-counts.mjs --source-sql-file img/caf.sql",
@@ -34,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "pg-dump-restore-nodejs": "^0.0.10",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

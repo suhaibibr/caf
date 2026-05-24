@@ -1,0 +1,305 @@
+openapi: 3.1.0
+info:
+  title: xBloom Local API
+  version: 1.0.0
+  description: Local xBloom backend (no Supabase)
+servers:
+  - url: http://localhost:8787
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        "200":
+          description: login success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /recipes:
+    get:
+      operationId: listRecipes
+      parameters:
+        - $ref: "#/components/parameters/SessionToken"
+      responses:
+        "200":
+          description: recipes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+    post:
+      operationId: createRecipe
+      parameters:
+        - $ref: "#/components/parameters/SessionToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecipeRequest"
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /recipes/{id}:
+    patch:
+      operationId: updateRecipe
+      parameters:
+        - $ref: "#/components/parameters/SessionToken"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecipeRequest"
+      responses:
+        "200":
+          description: updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+    delete:
+      operationId: deleteRecipe
+      parameters:
+        - $ref: "#/components/parameters/SessionToken"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /recipes/import:
+    post:
+      operationId: importRecipe
+      parameters:
+        - $ref: "#/components/parameters/OptionalSessionToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shareUrl:
+                  type: string
+                createInAccount:
+                  type: boolean
+                nameOverride:
+                  type: string
+              required: [shareUrl]
+      responses:
+        "200":
+          description: imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /recipes/{id}/share:
+    post:
+      operationId: recipeShare
+      parameters:
+        - $ref: "#/components/parameters/SessionToken"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: share link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+  /recipes/from-text:
+    post:
+      operationId: createRecipeFromText
+      parameters:
+        - $ref: "#/components/parameters/SessionToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecipeFromTextRequest"
+      responses:
+        "200":
+          description: created with share link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+components:
+  parameters:
+    SessionToken:
+      name: X-Session-Token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: session token from /login
+    OptionalSessionToken:
+      name: X-Session-Token
+      in: header
+      required: false
+      schema:
+        type: string
+  schemas:
+    SuccessEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data: {}
+      required: [success, data]
+    ErrorEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+          required: [code, message]
+      required: [success, error]
+    PourInput:
+      type: object
+      properties:
+        name:
+          type: string
+        volumeMl:
+          type: number
+        temperatureC:
+          type: number
+        pattern:
+          type: string
+          enum: [centered, spiral, circular]
+        flowRate:
+          type: number
+        pauseSeconds:
+          type: number
+        agitateBefore:
+          type: boolean
+        agitateAfter:
+          type: boolean
+      required: [volumeMl, temperatureC]
+    CreateRecipeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        brewType:
+          type: string
+          enum: [coffee, tea]
+        doseG:
+          type: number
+        ratio:
+          type: number
+        grindSize:
+          type: number
+        grindRpm:
+          type: number
+        color:
+          type: string
+        pours:
+          type: array
+          items:
+            $ref: "#/components/schemas/PourInput"
+      required: [name, doseG, ratio, pours]
+    UpdateRecipeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        brewType:
+          type: string
+          enum: [coffee, tea]
+        doseG:
+          type: number
+        ratio:
+          type: number
+        grindSize:
+          type: number
+        grindRpm:
+          type: number
+        color:
+          type: string
+        pours:
+          type: array
+          items:
+            $ref: "#/components/schemas/PourInput"
+    CreateRecipeFromTextRequest:
+      type: object
+      properties:
+        recipeText:
+          type: string
+          description: Optional. Can be empty when using manual pours.
+        name:
+          type: string
+        dose:
+          type: number
+        temp:
+          type: number
+        grind:
+          type: number
+        rpm:
+          type: number
+        flow:
+          type: number
+        ratio:
+          type: number
+        pourVolumesMl:
+          type: array
+          items:
+            type: number
+          description: Optional manual pour volumes (incremental ml).
+        waitSeconds:
+          type: array
+          items:
+            type: number
+          description: Optional manual pause seconds per pour.
+      required: [pourVolumesMl]

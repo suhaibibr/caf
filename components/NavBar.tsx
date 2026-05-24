@@ -30,6 +30,12 @@ export function NavBar({ tone = "light" }: NavBarProps) {
           </Link>
           <Link
             className="text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
+            href="/create-recipe"
+          >
+            انشاء وصفة
+          </Link>
+          <Link
+            className="text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
             href="/#recipes"
           >
             الوصفات
@@ -39,7 +45,7 @@ export function NavBar({ tone = "light" }: NavBarProps) {
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle tone={tone} />
           <Link
-            href="/roasters"
+            href="/create-recipe"
             className="hidden text-[12px] font-bold tracking-[0.18em] text-[var(--page-fg)] transition hover:text-[var(--page-muted)] sm:inline-flex"
           >
             ابدأ
