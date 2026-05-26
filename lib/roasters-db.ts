@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDbPool } from "@/lib/db";
 import { isRecoverableDbError } from "@/lib/db-errors";
 import { ensureRecipesReady } from "@/lib/recipes-db";
+import { cafGeneratedRoaster } from "@/lib/caf-generated-roaster";
 import {
   getRoaster,
   getRecipesByRoaster,
@@ -228,6 +229,36 @@ async function ensureRoastersTable() {
       SET about = ''
       WHERE about = 'يمكنك استكمال بيانات هذه المحمصة لاحقًا.'
     `,
+  );
+
+  await pool.execute<ResultSetHeader>(
+    `
+      INSERT INTO roasters (
+        slug,
+        name,
+        short_name,
+        description,
+        about,
+        location,
+        logo,
+        cover_image,
+        accent,
+        featured
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (slug) DO NOTHING
+    `,
+    [
+      cafGeneratedRoaster.slug,
+      cafGeneratedRoaster.name,
+      cafGeneratedRoaster.shortName,
+      cafGeneratedRoaster.description,
+      cafGeneratedRoaster.about,
+      cafGeneratedRoaster.location,
+      cafGeneratedRoaster.logo,
+      cafGeneratedRoaster.coverImage,
+      cafGeneratedRoaster.accent,
+      cafGeneratedRoaster.featured ? 1 : 0,
+    ],
   );
 }
 

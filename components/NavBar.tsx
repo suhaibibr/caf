@@ -29,10 +29,13 @@ export function NavBar({ tone = "light" }: NavBarProps) {
             المحامص
           </Link>
           <Link
-            className="text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"
             href="/create-recipe"
           >
-            انشاء وصفة
+            <span>انشاء وصفة</span>
+            <span className="rounded-full border border-[color:var(--page-line)] bg-[var(--page-fg)] px-1.5 py-0.5 text-[9px] leading-none tracking-[0] text-[var(--page-bg)]">
+              جديد
+            </span>
           </Link>
           <Link
             className="text-[11px] font-bold tracking-[0.08em] text-[var(--page-muted)] transition hover:text-[var(--page-fg)] sm:text-[12px] sm:tracking-[0.18em]"

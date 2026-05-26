@@ -19,10 +19,6 @@ export default function CreateRecipePage() {
         <h1 className="mt-2 text-4xl font-bold tracking-[-0.02em] text-[var(--page-fg)] sm:text-5xl">
           انشاء وصفة
         </h1>
-        <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-[var(--page-muted)]">
-          اكتب بيانات البن الأساسية فقط، وسيقوم المحرك بمحاكاة الوصفة بصيغة xBloom
-          أولًا ثم ينشئ لك رابطًا مباشرًا عند التنفيذ.
-        </p>
       </section>
 
       <XbloomRecipeEngine />

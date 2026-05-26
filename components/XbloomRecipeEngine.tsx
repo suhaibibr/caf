@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  CAF_GENERATED_ROASTER_NAME,
+  CAF_GENERATED_ROASTER_SLUG,
+} from "@/lib/caf-generated-roaster";
 import { normalizeRecipeForXbloomTransport } from "@/lib/xbloom-recipe-normalizer";
 
 type ProcessType =
@@ -2596,12 +2600,49 @@ type CreateLinkFailure = {
   message?: string;
 };
 
+type PublishRecipeSuccess = {
+  ok: boolean;
+  slug: string;
+  recipeUrl: string;
+};
+
+type PublishRecipeFailure = {
+  message?: string;
+};
+
 async function readJsonSafely<T>(response: Response) {
   try {
     return (await response.json()) as T;
   } catch {
     return null;
   }
+}
+
+function buildRecipePublishPayload(recipe: GeneratedRecipe, xbloomUrl: string) {
+  const usedPours = recipe.pours.filter((pour) => pour.used);
+  const totalSeconds = usedPours.reduce((sum, pour) => sum + pour.pause, 0);
+
+  return {
+    name: recipe.name,
+    authorName: "كــاف",
+    brewer: recipe.method,
+    grams: recipe.dose,
+    iceGrams: recipe.cupMode === "Iced" ? Math.round(recipe.coldPlan?.iceGrams ?? 0) : null,
+    pourCount: recipe.numberOfPours,
+    firstPourTemperature: usedPours[0]?.temperature ?? null,
+    pourSteps: usedPours.map((pour, index) => ({
+      name: index === 0 ? "Bloom" : `Pour ${index + 1}`,
+      volumeMl: Math.round(pour.volume),
+      temperatureC: pour.temperature,
+      seconds: pour.pause,
+    })),
+    ratioInput: `1:${recipe.ratio} ${Math.round(recipe.totalWater)}ml`,
+    roasterSlug: CAF_GENERATED_ROASTER_SLUG,
+    roasterName: CAF_GENERATED_ROASTER_NAME,
+    brewType: recipe.cupMode === "Iced" ? "cold" : "hot",
+    xbloomUrl,
+    totalSeconds,
+  };
 }
 
 function applyTransportNormalization(recipe: GeneratedRecipe): GeneratedRecipe {
@@ -2665,7 +2706,11 @@ export function XbloomRecipeEngine() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [recipeLink, setRecipeLink] = useState("");
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
-  const [resultSummary, setResultSummary] = useState<{ dose: number; ice: number } | null>(null);
+  const [resultSummary, setResultSummary] = useState<{
+    dose: number;
+    ice: number;
+    recipeUrl: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
 
@@ -2895,13 +2940,33 @@ export function XbloomRecipeEngine() {
                   throw new Error("لم يتم استلام رابط صالح من خدمة xBloom.");
                 }
 
+                setStatusMessage("تم إنشاء رابط xBloom، جاري حفظ الوصفة في كـاف...");
+                const publishResponse = await fetch("/api/recipe-submissions", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(buildRecipePublishPayload(recipePayload, body.url)),
+                });
+
+                if (!publishResponse.ok) {
+                  const errorBody = await readJsonSafely<PublishRecipeFailure>(publishResponse);
+                  throw new Error(
+                    errorBody?.message || "تم إنشاء رابط xBloom لكن تعذر حفظ الوصفة في كـاف.",
+                  );
+                }
+
+                const published = await readJsonSafely<PublishRecipeSuccess>(publishResponse);
+                if (!published?.recipeUrl) {
+                  throw new Error("تم حفظ الوصفة لكن لم يصل رابط صفحة الوصفة.");
+                }
+
                 setRecipeLink(body.url);
                 setResultSummary({
                   dose: recipePayload.dose,
                   ice: Math.round(recipePayload.coldPlan?.iceGrams ?? 0),
+                  recipeUrl: published.recipeUrl,
                 });
                 setIsResultModalOpen(true);
-                setStatusMessage("تم إنشاء الرابط بنجاح.");
+                setStatusMessage("تم إنشاء الرابط وحفظ الوصفة تحت محمصة بواسطة كـاف.");
               } catch (error) {
                 setStatusMessage("");
                 setErrorMessage(
@@ -3035,6 +3100,12 @@ export function XbloomRecipeEngine() {
               </a>
               <p>كمية القهوة: {resultSummary.dose}g</p>
               <p>كمية الثلج: {resultSummary.ice}g</p>
+              <a
+                href={resultSummary.recipeUrl}
+                className="text-[var(--page-card-button-bg)] underline"
+              >
+                عرض الوصفة في كـاف
+              </a>
             </div>
             <div className="mt-4 flex justify-end">
               <button

@@ -1,3 +1,5 @@
+import { cafGeneratedRoaster } from "@/lib/caf-generated-roaster";
+
 export type BrewMethod = "Espresso" | "Filter" | "Cold Brew";
 
 export type Difficulty = "Easy" | "Medium" | "Advanced";
@@ -100,6 +102,7 @@ export const roasters: Roaster[] = [
       "https://images.unsplash.com/photo-1741993677862-e64b3b074647?auto=format&fit=crop&w=1800&q=85",
     accent: "#6F4A38",
   },
+  cafGeneratedRoaster,
 ];
 
 export const recipes: Recipe[] = [
