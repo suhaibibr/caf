@@ -2862,10 +2862,10 @@ export function XbloomRecipeEngine() {
                 className="theme-input ui-select h-11 rounded-[12px] px-3 text-sm font-bold outline-none"
               >
                 <option value="">تلقائي</option>
-                <option value="Clarity">وضوح (Clarity)</option>
-                <option value="Balance">توازن (Balance)</option>
-                <option value="Sweetness">حلاوة (Sweetness)</option>
-                <option value="Body">قوام (Body)</option>
+                <option value="Clarity">كوب واضح</option>
+                <option value="Balance">كوب متوازن</option>
+                <option value="Sweetness">كوب حلو</option>
+                <option value="Body">كوب بقوام أعلى</option>
               </select>
             </div>
           </div>
