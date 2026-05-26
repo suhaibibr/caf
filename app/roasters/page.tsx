@@ -4,7 +4,7 @@ import { appendMiscRecipesRoaster } from "@/lib/misc-recipes-roaster";
 import { countManagedRecipesForMiscRoaster } from "@/lib/recipes-db";
 import { listRoasters } from "@/lib/roasters-db";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function RoastersPage() {
   const [baseRoasters, miscCounts] = await Promise.all([

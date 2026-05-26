@@ -21,6 +21,7 @@ const RECOVERABLE_DB_ERROR_CODES = new Set([
   "08001",
   "08006",
   "08P01",
+  "XX000",
 ]);
 
 const CONNECTION_EXHAUSTED_CODES = new Set([
@@ -75,6 +76,7 @@ function hasRecoverableDbMessage(error: unknown) {
     message.includes("PROTOCOL_CONNECTION_LOST") ||
     message.includes("GETADDRINFO") ||
     message.includes("TOO MANY CLIENTS") ||
+    message.includes("EXCEEDED THE COMPUTE TIME QUOTA") ||
     message.includes("THE DATABASE SYSTEM IS STARTING UP")
   );
 }

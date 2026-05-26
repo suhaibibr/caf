@@ -19,7 +19,7 @@ import {
 import { listRoasters } from "@/lib/roasters-db";
 import { listTopXbloomRecipes } from "@/lib/xbloom-clicks-db";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 const EXCLUSIVE_RECIPE_FALLBACK_IMAGES = [
   "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=1400&q=85",
