@@ -1,7 +1,4 @@
 import path from "node:path";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 function parsePositiveInt(value, fallback) {
   if (!value) return fallback;
@@ -10,7 +7,11 @@ function parsePositiveInt(value, fallback) {
   return Math.floor(parsed);
 }
 
-const resolvedSessionFile = path.resolve(process.cwd(), process.env.SESSION_FILE || "./session.json");
+const defaultSessionFile =
+  process.env.VERCEL || process.env.LAMBDA_TASK_ROOT
+    ? "/tmp/xbloom-session.json"
+    : "./session.json";
+const resolvedSessionFile = path.resolve(process.cwd(), process.env.SESSION_FILE || defaultSessionFile);
 
 export const config = {
   port: parsePositiveInt(process.env.PORT, 8787),
