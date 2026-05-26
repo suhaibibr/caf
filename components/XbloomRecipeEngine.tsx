@@ -2440,7 +2440,7 @@ function buildRecipe(resolved: ResolvedInput): GeneratedRecipe {
       : "";
 
   const brewGoalText = [
-    `تم تصميم الوصفة لتحقيق كوب ${resolved.cupMode === "Iced" ? "بارد" : "حار"} بهدف ${resolved.cupGoal} على Omni Dripper مع طابع ${resolved.sensoryIntent}.`,
+    `تم تصميم الوصفة لتحقيق كوب ${resolved.cupMode === "Iced" ? "بارد" : "حار"} بهدف ${toArabicGoal(resolved.cupGoal)} على Omni Dripper مع طابع ${resolved.sensoryIntent}.`,
     isIced && coldPlan
       ? `وصفة باردة | Brew Water ${coldPlan.brewWater}ml | Ice ${coldPlan.iceGrams}g | Final ~${coldPlan.expectedFinalBeverage}ml | Ice Placement: ${coldPlan.icePlacementText}.`
       : "",
@@ -2456,7 +2456,7 @@ function buildRecipe(resolved: ResolvedInput): GeneratedRecipe {
       : "تاريخ التحميص غير متوفر؛ تم تطبيق سلوك افتراضي للحداثة.";
 
   const candidate: CandidateRecipe = {
-    name: `${resolved.coffeeName || "وصفة جديدة"} - ${resolved.cupGoal}${isIced ? " Iced" : ""}`,
+    name: `${resolved.coffeeName || "وصفة جديدة"} - ${toArabicGoal(resolved.cupGoal)}${isIced ? " بارد" : ""}`,
     brewGoal: brewGoalText,
     method: resolved.method,
     cupMode: resolved.cupMode,

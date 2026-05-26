@@ -39,13 +39,15 @@ type CountRow = RowDataPacket & {
 };
 
 function createSlug(value: string) {
-  return value
+  const normalized = value
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "-")
-    .replace(/[^\p{L}\p{N}-]/gu, "")
+    .replace(/[^a-z0-9-]/g, "")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+
+  return normalized || `recipe-${Date.now()}`;
 }
 
 function parseRatioField(value: string) {
